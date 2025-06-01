@@ -1,0 +1,6 @@
+"0","saw_approx <- saw_fft_approx |> "
+"0","  dplyr::mutate("
+"0","    theta = rep(pf_wide$ x, times = 1L + length(k_maxima)), "
+"0","	Sn = Re(z_x)"
+"0","  ) |> "
+"0","  dplyr::select(d, theta, Sn) "

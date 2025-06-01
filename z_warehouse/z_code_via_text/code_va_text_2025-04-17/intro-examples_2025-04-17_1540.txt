@@ -1,0 +1,1341 @@
+---
+title: "Fourier Series"
+subtitle: "Introductory Examples"
+author: 
+  - name: "Send comments to: Tony T (tthrall)"
+date: "`r format(Sys.time(), '%Y-%m-%d %H:%M', usetz = TRUE)`"
+output: 
+  html_document:
+    toc: true
+    df_print: paged
+    latex-auto-install: true
+  word_document:
+    toc: true
+    df_print: tibble
+  pdf_document:
+    toc: true
+    df_print: tibble
+	# pdf-engine: latexmk
+	# latex-auto-install: true
+	# mathjax: default
+abstract: 
+  "Introduce the Fourier series approximation of a function as demonstrated by a few periodic, piecewise linear functions. <br><br>"
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = FALSE, 
+  error   = FALSE, 
+  message = FALSE, 
+  warning = FALSE
+)
+```
+
+```{r cran_libraries}
+library(assertthat)
+library(here)
+library(knitr)
+library(latex2exp)
+library(tidyverse)
+library(tinytex)
+```
+
+```{r local_libraries}
+# library(ugrid)
+```
+
+```{r local_source}
+# fft_approx
+# low-frequency approximation via FFT
+source(here("code", "fft_approx.R"))
+
+# kernel_fns
+# kernel functions: Dirichlet, Fejér, etc.
+source(here("code", "kernel_fns.R"))
+
+# pf_factory
+# create and display periodic functions
+source(here("code", "pf_factory.R"))
+
+# u_grid
+# generate equispaced points within unit interval
+# source(here("code", "u_grid.R"))
+
+# unit_testing
+# test the source code in this directory
+source(here("code", "unit_testing.R"))
+
+# x_rotate
+# circular rotation of vector x[1:n]
+source(here("code", "x_rotate.R"))
+
+# xl_data_hdr
+# read Excel tab when data are separated from col names
+# source(here("code", "xl_data_hdr.R"))
+
+# xmpl_fns
+# a few selected periodic, piecewise linear functions
+# source(here("code", "xmpl_fns.R"))
+```
+
+```{r plotting_params}
+n_pos_pts <- 121L # yields 2n+1 = 3^k points
+k_maxima  <- c(9L, 25L) # kernel indices
+m_periods <- 2L # duplicate periods for illustration
+
+# (-1, 1) interior points
+u_vec <- (-n_pos_pts:n_pos_pts) / (n_pos_pts + 1L)
+
+# grid-points in (-m pi, m pi), m = m_periods
+x_vec <- u_vec * (m_periods * pi)
+```
+
+```{r krnl_lst}
+initialize tibble of Dirichlet and Fejér kernel functions
+k_long <- tibble::tibble()
+
+# calculate long tibble per kernel index and stack results
+for (idx in k_maxima) {
+  tmp_lst <- list_kernel_tbls(
+    n_grid = n_pos_pts, 
+	k_max  = idx
+  )
+  k_long <- k_long |> 
+    dplyr::bind_rows(
+	  tmp_lst$ krnl_long |> 
+	  # record kernel index
+	  dplyr::mutate(k_idx = idx) |> 
+	  dplyr::select(k_idx, everything())
+	)
+}
+```
+
+## Approximation Framework
+
+### Motivation
+
+This technical note introduces the Fourier series approximation of $2 \pi$-periodic functions as a starting point for the Fourier analysis of times seris (to be introduced in a separate technical note).
+
+### $L_p(\mathbb{T})$
+
+#### Definition
+
+Let $\mathbb{T} = \{ \omega \in \mathbb{C}: | \omega | = 1 \}$ denote the multiplicative, topological group of complex numbers of modulus 1, whose basic open sets are open arcs of the unit circle.
+
+Let $\lambda_\mathbb{T}$ denote Lebesgue measure on $\mathbb{T}$ divided by $2 \pi$ so that $\lambda_\mathbb{T} (\mathbb{T}) = 1$.
+
+For any $p > 0$ define $L_p(\mathbb{T})$ to be the linear space of measurable, complex-valued functions $\phi: \mathbb{T} \rightarrow \mathbb{C}$ such that 
+
+$$
+\begin{align}
+  \phi \in L_p(\mathbb{T}) &\Leftrightarrow \int_\mathbb{T} | \phi |^p d\mu < \infty
+\end{align}
+$$
+
+We then define the following norm on $L_p(\mathbb{T})$.
+
+$$
+\begin{align}
+  {\lVert \phi \rVert}_p &= \left ( \int_\mathbb{T} | \phi |^p d\mu \right )^{ \frac {1}{p}}
+\end{align}
+$$
+
+This definition for finite $p$ can be extended to the norm ${\lVert \phi \rVert}_\infty$ as follows.  Given $\phi: \mathbb{T} \rightarrow \mathbb{C}$ define $U_\phi$ to be the following subset of non-negative bounds $b$ (if any) such that
+
+$$
+\begin{align}
+  b \in U_\phi &\Leftrightarrow \mu \left ( \{ \omega: | \phi (\omega) | > b \} \right ) = 0 
+\end{align}
+$$
+
+Then we define 
+
+$$
+\begin{align}
+  {\lVert \phi \rVert}_\infty &= 
+    \begin{cases}
+      \infty & \text{if } U_\phi = \emptyset \\
+      \inf \; {U_\phi} & \text{otherwise}
+    \end{cases}
+\end{align}
+$$
+
+This norm is called the _essential upper bound_ of $| \phi(\cdot) |$.  If ${\lVert \phi \rVert}_\infty < \infty$, $\phi(\cdot)$ is said to be _essentially bounded_.  The normed linear space of essentially bounded functions is denoted $L_\infty(\mathbb{T})$.
+
+It turns out that for each $p \in (0, \infty]$, $L_p(\mathbb{T})$ is a _complete_ normed linear space i.e., a Banach space. That is, each Cauchy sequence in $L_p(\mathbb{T})$ converges to a member of $L_p(\mathbb{T})$.
+
+#### $2 \pi$-periodic functions
+
+For $\omega \in \mathbb{T}$ let $\omega \mapsto \theta_{(\omega)}$ denote the _principal argument_ of $\omega$ 
+
+$$
+\begin{align}
+  \theta_{(\omega)} = \text{Arg } (\omega) \in (- \pi, \pi]
+\end{align}
+$$
+
+so that 
+
+$$
+\begin{align}
+  \omega = \exp (i \; \theta_{(\omega)}) = e^{i \; \theta_{(\omega)}}
+\end{align}
+$$
+
+Conversely, given $\theta \in \mathbb{R}$ let $\tilde{\theta}$ denote the following modular mapping from $\mathbb{R}$ to $(- \pi, \pi]$
+
+$$
+\begin{align}
+  \tilde{\theta} = \text{Arg } ( e^{i \theta} ) \in (- \pi, \pi]
+\end{align}
+$$
+
+and let $\theta \mapsto \omega_{(\theta)}$ denote the related mapping from $\mathbb{R}$ to $\mathbb{T}$.
+
+$$
+\begin{align}
+  \omega_{(\theta)} = e^{i \; \theta}
+\end{align}
+$$
+
+A function $f: \mathbb{R} \rightarrow \mathbb{C}$ is periodic with period $2 \pi$ if 
+
+$$
+\begin{align}
+  f(\theta) &= f(\tilde{theta}) & \text{for all } \theta \in \mathbb{R}
+\end{align}
+$$
+
+In this case we identify $f: \mathbb{R} \rightarrow \mathbb{C}$ with a corresponding function $\phi: \mathbb{T} \rightarrow \mathbb{C}$ fo which 
+
+$$
+\begin{align}
+  f(\theta) &= \phi(e^{i \theta}) & \text{for all } \theta \in \mathbb{R}
+\end{align}
+$$
+
+so that 
+
+$$
+\begin{align}
+  f(\theta)    &= \phi(\omega_{(\theta)}) \\ 
+  \phi(\omega) &= f(\theta_{(\omega)}) 
+\end{align}
+$$
+
+That is, $f(\cdot)$ can be identified with a given $\phi(\cdot)$ or, alternatively, $\phi(\cdot)$ can be identified with a given $f(\cdot)$.  We denote this equivalence as $f \equiv \phi$ and we define 
+
+$$
+\begin{align}
+  \lVert f \rVert_p &= \lVert f \rVert_p & \text{whenever } f \equiv \phi
+\end{align}
+$$
+
+for all $p \in (0, \infnty]$.
+
+#### Inclusion relations
+
+Since $\lambda(\mathbb{T})$ is finite (and moreover equal to unity), we can show that for all finite $p > 0$ we have ${\lVert \phi \rVert}_p \le {\lVert \phi \rVert}_\infty$.
+
+$$
+\begin{align}
+  {\lVert \phi \rVert}_p &= \left ( \int_\mathbb{T} | \phi (\omega) |^p d\mu (\omega) \right )^{ \frac {1}{p}} \\ 
+  &\le \left ( \int_\mathbb{T} {\lVert \phi \rVert}_\infty^p d\mu (\omega) \right )^{ \frac {1}{p}} \\ 
+  &= {\lVert \phi \rVert}_\infty \left ( \int_\mathbb{T} 1 \; d\mu (\omega) \right )^{ \frac {1}{p}} \\ 
+  &= {\lVert \phi \rVert}_\infty \left ( \mu(\mathbb{T}) \right )^{ \frac {1}{p}} \\ 
+  &= {\lVert \phi \rVert}_\infty
+\end{align}
+$$
+
+If ${\lVert \phi \rVert}_p = {\lVert \phi \rVert}_\infty$, then either both ${\lVert \phi \rVert}_p$ and ${\lVert \phi \rVert}_\infty$ are infinite, or else $\left | \phi(\omega) \right | = {\lVert \phi \rVert}_\infty$ for almost all $\omega$.  Otherwise ${\lVert \phi \rVert}_p < {\lVert \phi \rVert}_\infty$.
+
+Moreover, if $0 < p < q < \infty$ then 
+
+$$
+\begin{align}
+{\lVert \phi \rVert}_p^p &= \int_\mathbb{T} | \phi(\omega) |^p d\mu (\omega) \\ 
+  &= \int_{| \phi | \le 1} | \phi(\omega) |^p d\mu (\omega) + \int_{| \phi | > 1} | \phi(\omega) |^p d\mu (\omega) \\ 
+  &\le \int_{| \phi | \le 1} 1 \; d\mu (\omega) + \int_{| \phi | > 1} | \phi(\omega) |^p d\mu (\omega) \\ 
+  &\le \int_{| \phi | \le 1} 1 \; d\mu (\omega) + \int_{| \phi | > 1} | \phi(\omega) |^q d\mu (\omega) \\ 
+  &\le \int_\mathbb{T} 1 \; d\mu (\omega) + \int_\mathbb{T} | \phi(\omega) |^q d\mu (\omega) \\ 
+  &= 1+  {\lVert \phi \rVert}_q^q
+\end{align}
+$$
+
+Consequently if ${\lVert \phi \rVert}_q$ is finite then so must be ${\lVert \phi \rVert}_p$.  That is, if $\phi (\cdot)$ is a member of $L_q(\mathbb{T})$ then it must also be a member of $L_p(\mathbb{T})$.  We thus have the following chain of subsets among these normed linear spaces.
+
+$$
+\begin{align}
+  L_\infty(\mathbb{T}) \subset L_q(\mathbb{T}) \subset L_p(\mathbb{T}) \subset L_1(\mathbb{T}) \\ 
+  \\ 
+  \text{for } 1 < p < q < \infty
+\end{align}
+$$
+
+### $L_2(\mathbb{T})$
+
+#### Inner product
+
+For any $\phi, \eta \in L_2(\mathbb{T})$ we define the following inner product.
+
+$$
+\begin{align}
+  \left < \phi, \eta \right > &= \int_\mathbb{T} \phi \times \bar{\eta} \; d\lambda_\mathbb{T} \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} \phi(e^{i \theta}) \times \bar{\eta}(e^{i \theta}) \; d\theta
+\end{align}
+$$
+
+By the Cauchy-Schwarz-Bunyakovsky inequality we have 
+
+$$
+\begin{align}
+  \left | \left < \phi, \eta \right > \right | 
+  &le {\lVert \phi \rVert}_2 \; {\lVert \eta \rVert}_2
+\end{align}
+$$
+
+Like other $L_p(\mathbb{T})$ spaces, $L_2(\mathbb{T})$ is a complete normed space, that is, a Banach space.  Consequently, $L_2(\mathbb{T})$ is also complete inner product space, that is, a Hilbert space. 
+
+#### An orthonormal basis
+
+For each integer $\nu \in \mathbb{Z}$ define function $u_\nu: \mathbb{T} \rightarrow \mathbb{C}$ as follows.
+
+$$
+\begin{align}
+  u_\nu(\omega) = {\omega}^\nu
+\end{align}
+$$
+
+or equivalently 
+
+$$
+\begin{align}
+  u_\nu(e^{i \theta}) = e^{i \nu \theta}
+\end{align}
+$$
+
+Then $\left | u_\nu (\omega) \right | = 1$ for all $$ so that $\omega \in \mathbb{T}$ and thus $u_\nu (\cdot)$ is a member of $L_p(\mathbb{T})$ for all $p \in (0, \infty]$.  In particular $u_\nu \in L_2(\mathbb{T})$.
+
+Now for any integers $\mu, \nu \in \mathbb{Z}$ the pair of functions $u_\mu, u_nu$ have the following inner product.
+
+$$
+\begin{align}
+  \left < u_\mu, u_\nu \right > &= \int_\mathbb{T} u_\mu \times \bar{u}_\nu \; d\lambda_\mathbb{T} \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} u_\mu(e^{i \theta}) \times \bar{u}_\nu(e^{i \theta}) \; d\theta \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} e^{i \mu \theta} \times e^{-i \nu \theta} \; d\theta \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} e^{i \theta (\mu - \nu) } \; d\theta \\ 
+  &= 1_{[0]}[\mu - \nu] \\ 
+  &= 
+    \begin{cases}
+	  1 & \text{if } \mu - \nu = 0 \\ 
+	  0 & \text{otherwise}
+	\end{cases}
+\end{align}
+$$
+
+Therefore 
+
+$$
+\begin{align}
+  \left \{ u_\nu(\cdot) \right |}_{\nu = - \infty}^\infty
+\end{align}
+$$
+
+is an orthonormal set of functions in $L_2(\mathbb{T})$.  Moreover, it turns out this set is an orthonormal _basis_ of $L_2(\mathbb{T})$.  That is, each member of $L_2(\mathbb{T})$ can be approximated arbitrarily closely in the 2-norm by a finite linear combination from this set of functions.
+
+### Linear functionals
+
+#### $\mathcal{B}^*$
+
+Let $\mathcal{B}$ be a Banach space of complex-valued functions defined on $\mathbb{T}$, with the norm of function $f(\cdot)\in \mathcal{B}$ denoted as $\Vert f \rVert_\mathcal{B}$.
+
+A _linear functional_ on $\mathcal{B}$ is a complex-valued linear mapping $\lambda: \mathcal{B} \rightarrow \mathbb{C}$.  The linear functional $\lambda$ is said to be _bounded_ if there is some constant $b \ge 0$ such that 
+
+$$
+\begin{align}
+  \left | \lambda(f) \right | &le b \; \lVert f \rVert_\mathcal{B} & \text{for all } f \in \mathcal{B}
+\end{align}
+$$
+
+Now let $U_\lambda$ denote the set of all such bounds $b$.
+
+$$
+\begin{align}
+  b \in U_\lambda & \Leftrightarrow \left | \lambda(f) \right | 
+  \le b \; \lVert f \rVert_\mathcal{B} & \text{for all } f \in \mathcal{B}
+\end{align}
+$$
+
+Then the bounded linear functionals consitute a Banach space, in which the norm of $\lambda$ is defined to be the infimum of all such bounds $b$.
+
+$$
+\begin{align}
+  \lVert \lambda \rVert &= \inf \; \left ( U_lambda \right )
+\end{align}
+$$
+
+(As usual, we define the infimum of the empty set to be infinity.  If $U_\lambda = \emptyset$ we define $\lVert \lambda \rVert = \infty$.)
+
+The normed linear space of bounded linear functionals is called the _dual space_ of $\mathcal{B}$, and is denoted as $\mathcal{B}^*$.
+
+#### $L_p(\mathbb{T})^*$
+
+Recall _Hölder's inequality_.  For each $p \in (1, \infty)$ define $q = p / (p-1)$ to be the Hölder conjugate index of $p$.  Then 
+
+$$
+\begin{align}
+  \frac{1}{p} + \frac{1}{q} = 1
+\end{align}
+$$
+
+Extend this set of conjugate pairs to include $(1, \infty)$.  Then for $f \in L_p(\mathbb{T})$ and $g \in L_q(\mathbb{T})$, the point-wise product $f(\theta) \times g(\theta)$ is a member of $L_1(\mathbb{T})$ and satisfies Hölder's inequality:
+
+$$
+\begin{align}
+  \lVert f \; g \rVert_1 &\le \lVert f \rVert_p \; \lVert g \rVert_q
+\end{align}
+$$
+
+Consequently the mapping 
+
+$$
+\begin{align}
+  \lambda_g(f) &= \int_\mathbb{T} f(\theta_\omega) \; g(\theta_\omega) \; d\lambda_\mathbb{T} (\omega) \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi f(\theta) \; g(\theta) \; d\theta
+\end{align}
+$$
+
+is a bounded linear functional with norm $\Vert g \rVert_q$.
+
+$$
+\begin{align}
+  \lVert \lambda_g \rVert &= \lVert g \rVert_q
+\end{align}
+$$
+
+Thus the map 
+
+$$
+\begin{align}
+  g \mapsto \lambda_g \in L_p(\mathbb{T})^*
+\end{align}
+$$
+
+embeds $L_q(\mathbb{T})$ in $L_p(\mathbb{T})^*$.  This embedding turns out to be an isometric isomorphism.
+
+$$
+\begin{align}
+  L_p(\mathbb{T})^* & \equiv L_q(\mathbb{T})
+\end{align}
+$$
+
+Summarizing, we have 
+
+$$
+\begin{align}
+  \lambda_g(f) &= \frac{1}{2 \pi} \int_{- \pi}^\pi f(\theta) \; g(\theta) \; d\theta \\ 
+  \\ 
+  & \text{}for f \in \L_p(\mathbb{T}) \text{ and } g \in \L_q(\mathbb{T}) \\ 
+  \\ 
+  & \text{with } \frac{1}{p} \; + \; \frac{1}{p} = 1
+\end{align}
+$$
+
+#### $\mathcal{C}(\mathbb{T})^*$
+
+From the preceding section note that as $p \in [1, \infty]$ increases, the domain $L_p(\mathbb{T})$ becomes more restrictive, thereby enlarging the dual space of bounded linear functionals $\lambda_g \in L_p(\mathbb{T})^* \equiv L_q(\mathbb{T})$.
+
+Further restriction of this domain enlarges the corresponding dual space of linear functionals.  That is for a domain Banach space $\mathcal{B}$ of bounded functions on $\mathbb{T}$ we have 
+
+$$
+\begin{align}
+  \mathcal{B} \subset L_\infty(\mathbb{T}) \\ 
+  \Rightarrow & \mathcal{B}^* \supset L_\infty(\mathbb{T})^* \equiv L_1(\mathbb{T})
+\end{align}
+$$
+
+For example consider $\mathcal{B} = \mathcal{C}(\mathbb{T})$, the Banach space of continuous functions on $\mathbb{T}$ equipped with the $L_\infty(\mathbb{T})$ norm.  For such well-behaved functions the Dirac delta functional, $\delta_\tau(\cdot)$ that evaluates any given function $f(\cdot) \in \mathcal{C}(\mathbb{T})$ at a specified point $\tau$ is well-defined, and moreover, bounded.
+
+$$
+\begin{align}
+  \delta_\tau (f) &= f(\tau) \\ 
+  \\ 
+  \lVert \delta_\tau \rVert &= 1
+\end{align}
+$$
+
+This linear functional can be represented as the integral of $f(\cdot)$ with respect to the atomic (discrete) measure concentrated on the atom $\tau$, that is, on the singleton set $\{ \tau \}$, where it assigns unit mass.
+
+In general, an element of $\mathcal{C}(\mathbb{T})^*$ can be represented by a complex-valued, finitie measure $\mu$ on $\mathbb{T}$ so that 
+
+$$
+\begin{align}
+  \lambda_\mu (f) &= \int_\mathbb{T} f(\theta_\omega) \; d\mu(\omega)
+\end{align}
+$$
+
+Each such measure $\mu$ has a discrete component $\mu_d$ and an absolutely continuous component $\mu_c$ (i.e., absolutely continuous with respect to the scaled Lebesgue measure $\lambda_\mathbb{T}$).  That is, for any Borel subset $E \subseteq \mathbb{T}$ we have 
+
+$$
+\begin{align}
+  \mu (E) &= \mu_c (E) \; + \; \mu_d (E)
+\end{align}
+$$
+
+with 
+
+$$
+\begin{align}
+  \mu_c (E) &= \int_E g_\mu(\theta_\omega) \; d\lambda_\mathbb{T} (\omega) \\
+  \\ 
+  \mu_d (E) &= \sum_{ \tau \in E \; \cap \; \sigma(\mu_d) } \rho_\tau \; e^{i \theta_tau}
+\end{align}
+$$
+
+where $\sigma (\mu_d)$ denotes the support (the set of atoms) of the discrete measure $mu_d$, and where $rho_\tau$ and $\theta_\tau$ are the respective modulus and argument of $\mu_d$ evaluated at such an atom $\tau$.
+
+$$
+\begin{align}
+  \rho_\tau &= \left | \; \mu_d( \{ \tau \} ) \; \right | \\ 
+  \theta_\tau &= \text{Arg} \left ( \; \mu_d( \{ \tau \} ) \; \right ) \\ 
+  \mu_d( \{ \tau \} ) &= \rho_\tau \; e^{i \theta_\tau}
+\end{align}
+$$
+
+Also associated with measure $\mu$ is the corresponding modulus measure measure $| \mu |$, which is a finite, non-negative measure such that for any Borel subset $E \subseteq \mathbb{T}$ we have 
+
+$$
+\begin{align}
+  | \mu | \; (E) &= \int_E \left | g_\mu(\theta_\omega) \right | \; d\lambda_\mathbb{T} (\omega) \;
+  + \sum_{ \tau \in E \; \cap \; \sigma(\mu_d) } \rho_\tau \\ 
+  & < \infty
+\end{align}
+$$
+
+Since the sum of $\{ \rho_\tau \}$ across atoms $\tau$ must be finite, the set of atoms, $\sigma (\mu_d)$, can be at most countably infinite.
+
+The norm of such a measure $mu$ is $| \mu | (\mathbb{T})$.
+
+$$
+\begin{align}
+  \lVert \mu \rVert &= | \mu | \; (\mathbb{T}) \\ 
+  &= int_\mathbb{T} \left | g_\mu (\theta_\omega) \right | \; d\lambda_\mathbb{T} (\omega) \; 
+  + \sum_{ \tau \in \sigma(\mu_d) } \rho_\tau \\ 
+  &= { \lVert g_\mu \rVert }_1 \; + \; + \; | \mud_d | \; (\mathbb{T}) \\ 
+  &= { \lVert g_\mu \rVert }_1 \; + \; + \; \Vert \mu_d \rVert \\ 
+  < \infty
+\end{align}
+$$
+
+The linear functions $\lambda_\mu$ evaluated at $f(\cdot)$ is thus 
+
+$$
+\begin{align}
+  \lambda_\mu (f) &= \int_\mathbb{T} f(\theta_\omega) \; g(\theta_\omega) \; d\mu (\omega) \\ 
+  &= \frac{1}{2 \pi} \int_\mathbb{T} f(\theta) \; g(\theta) \; d\theta \; 
+  + \; \sum_{ \tau \in \sigma(\mu_d) } f(\tau) \; \rho_\tau \; e^{i \theta_tau}
+\end{align}
+$$
+
+The linear functional $\lambda_mu$ has the norm of its corresponding measure $\mu$.
+
+$$
+\begin{align}
+  \lVert \lambda \rVert &= \lVert \mu \rVert
+\end{align}
+$$
+
+Summarizing, we have 
+
+$$
+\begin{align}
+  \mathcal{C}(\mathbb{T})^* = \mathcal{M} (\mathbb{T})
+\end{align}
+$$
+
+where $\mathcal{M} (\mathbb{T})$ denotes teh Banach space of finite, complex-valued Borel measures $\mu (\cdot)$ defined on $\mathbb{T}$.
+
+#### $\mathcal{C}_m (\mathbb{T})^*$
+
+Suppose the domain $\mathcal{B}$ is now further restricted to $\mathcal{C}_m (\mathbb{T})$, the set of functions whose $m^{th}$ derivative exists and is continuous (thus bounded) on $mathbb{T}$.  Then the dual space of functionals that are well-defined and bounded on this restricted domain is expanded to $\mathcal{D}_m (\mathbb{T})$, the generalized functions (Schwartz distributions) of order $m$.  One such functional is $f^{(m)} (\tau)$, the $m^{th}$ derivative of $f(\cdot)$ evaluated at some specified point $\tau$.
+
+## Fourier Coefficients
+
+### $\hat{f} [\nu]$
+
+If $f \equiv \phi(\cdot) \in L_1(\mathbb{T})$ then $\hat{f} [\nu]$ denotes the Fourier coefficient of $f(\cdot)$ of index $\nu$, defined as follows.
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \left < \phi, u_\nu \right > \\ 
+  &= \int_\mathbb{T} \phi \times \bar{u}_\nu \; d\lambda_\mathbb{T} \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} \phi(e^{i \theta}) \times \bar{u}_\nu(e^{i \theta}) \; d\theta \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} f(\theta) \times e^{- i \nu \theta} \; d\theta
+\end{align}
+$$
+
+Note that the magnitude of $\hat{f} [\nu]$ is bounded by ${\lVert f \rVert}_1$ for all $\nu$.
+
+$$
+\begin{align}
+  \left | \hat{f} [\nu] \right | &= \left | \frac{1}{2 \pi} \int_{- \pi}^{\pi} f(\theta) \times e^{- i \nu \theta} \; d\theta \; \right | \\ 
+  &\le \frac{1}{2 \pi} \int_{- \pi}^{\pi} | f(\theta) | \; d\theta \\ 
+  &= {\lVert f \rVert}_1 
+\end{align}
+$$
+
+Moreover, the Riemann-Lebesgue lemma shows that 
+
+$$
+\begin{align}
+  \lim_{|\nu| \rightarrow \infty} \hat{f}[\nu] &= 0
+\end{align}
+$$
+
+We denote by $\mathcal{F} (f)$ the mapping of function $f$ to its Fourier coefficients  
+
+$$
+\begin{align}
+  f(\cdot) \mapsto \left \{ \hat{f} [\nu] \right \}_{\nu = - \infty}^{\infty}
+\end{align}
+$$
+
+Thus $\mathcal{F}$ maps $L_1(\mathbb{T})$ to doubly infinite sequences that converge to zero.  Such sequences constitute a linear space denoted as $\mathcal{c}_0$.
+
+### $S_{n, w}(f)$
+
+Given $f \equiv \phi(\cdot) \in L_1(\mathbb{T})$ and non-negative integer index $n$, we define $S_n(f)$ as the following finite Fourier series approximation of $f(\cdot)$
+
+$$
+\begin{align}
+  S_n(f) (\theta) &= \sum_{\nu = -n}^{n} \hat{f} [\nu] e^{i \nu \theta}
+\end{align}
+$$
+
+More generally we'll consider weighted approximations of the following form.
+
+$$
+\begin{align}
+  S_{n, w}(f) (\theta) &= \sum_{\nu = -n}^{n} w_n[\nu] \; \hat{f} [\nu] \; e^{i \nu \theta}
+\end{align}
+$$
+
+where $w_n [\nu]$ may be defined by a weighting function $\mathcal{w}: \mathbb{R} \rightarrow \mathbb{R}$ (also called a convergence factor).  For example, we may set
+
+$$
+\begin{align}
+  w_n [\nu] = \mathcal{w} \left ( \frac{\nu}{n} \right )
+\end{align}
+$$
+
+Note that $S_{n, w} (f)$ can be expressed as the following convolution with $f (\cdot)$.
+
+$$
+\begin{align}
+  S_{n, w} (f) (\theta) &= \sum_{\nu = n}^n w_n [\nu] \; \hat{f} [\nu] \; e^{i \nu \theta} \\ 
+  &= \sum_{\nu = n}^n w_n [\nu] \; \left ( \frac{1}{2 \pi} \int_{- \pi}^{\pi} f(t) \times e^{- i \nu t} \; dt \right ) \; e^{i \nu \theta} \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} \left ( \sum_{\nu = n}^n w_n [\nu] \; e^{i \nu (\theta - t)} \right ) f(t) \; dt \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} W_n (\theta - t) \; f(t) \; dt \\ 
+  &= \left ( W_n * f \right ) (\theta)
+\end{align}
+$$
+
+where 
+
+$$
+\begin{align}
+  W_n (\alpha) = \sum_{\nu = -n}^n w_n [\nu] \; e^{i \nu \alpha}
+\end{align}
+$$
+
+The functions $\left \{ W_n(\cdot) \right \}$ may be constructed to satisfy the requirements of a family of _kernel functions_: integrating to unit, and concentrated on a vanishingly small neighborhood of zero as $n \rightarrow \infty$.  If $W_n * f$ converges in norm to $f$, for all $f \in L_1 (\mathbb{T})$, the sequence $\left \{ W_n(\cdot) \right \}$ is said to be an approximate identity.
+
+Note that $S_n (f)$ can be expressed as a weighted sum $S_{n, w} (f)$ by setting $\mathcal{w} (\cdot) \equiv 1$.  In this case we obtain the Dirichlet kernel function $D_n (\alpha)$.
+
+$$
+\begin{align}
+  D_n (\alpha) &= \sum_{\nu = -n}^n e^{i \nu \alpha} \\ 
+  &= 1 + 2 \sum_{\nu = 1}^n cos( \nu \alpha ) \\ 
+  &= \frac{ sin \left ( (n + 1/2) \alpha \right ) }{ sin(\alpha / 2) }
+\end{align}
+$$
+
+Then we have 
+
+$$
+\begin{align}
+  S_n (f) (\theta) &= \left ( D_n * f \right ) (\theta)
+\end{align}
+$$
+
+If $f \equiv \phi$ is not only integrable but also square-integrable, that is if $f \equiv \phi \in L_2 (\mathbb{T})$, then one can show that $S_n (F)$ converges to $f(\cdot)$ in the integrated square-error $\left ( L_2 \right )$ norm.
+
+$$
+\begin{align}
+  0 &= \lim_{n \rightarrow \infty} \lVert f - S_n(f) \rVert^2 \\ 
+  &= \lim_{n \rightarrow \infty} \frac{1}{2 \pi} \int_{- \pi}^\pi \left | \; f(\theta) - S_n(f)(\theta) \; \right |^2 \; d\theta
+\end{align}
+$$
+
+### Trigonometric polynomials
+
+As a special form of $2 \pi$-periodic function, consider a finite linear combination $p(\theta)$ of the orthonormal basis functions $\{ u_\nu (e^{i \theta}) \}_\nu$.
+
+$$
+\begin{align}
+  p(\theta) &= \sum_{\nu = -n}^n c_\nu u_\nu (e^{i \theta}) \\ 
+  &= \sum_{\nu = -n}^n c_\nu  e^{i \nu \theta}
+\end{align}
+$$
+
+Function $p(\cdot)$ is called a trigonometric polynomial.  The Fourier coefficients of $p(\cdot)$ are the coefficients $c_\nu$ of the linear combination.
+
+$$
+\begin{align}
+  \hat{p} [\nu] &= 
+  \begin{cases}
+    c_\nu & \text{for } |\nu| \le n \\ 
+	0 & \text{for } |\nu| > n 
+  \end{cases}
+\end{align}
+$$
+
+Now, given a doubly infinite sequence of coefficients, $\{ c_\nu \}$, we can form a sequence $p_n (\cdot)$ of trigonometric polynomials having the following uniform bound.
+
+$$
+\begin{align}
+  \left | p_n (\theta) \right | &= \left | \sum_{\nu = -n}^n c_\nu e^{i \nu \theta} \right | \\ 
+  &\le \sum_{\nu = -n}^n \left | c_\nu e^{i \nu \theta} \right | \\ 
+  &= \sum_{\nu = -n}^n \left | c_\nu \right | \\ 
+  &= \sum_{\nu = -\infty}^\infty \left | c_\nu \right | 
+\end{align}
+$$
+
+Consequently 
+
+$$
+\begin{align}
+  \lVert p_n(\cdot) \rVert_\infty &\le \sum_{\nu = -n}^n \left | c_\nu \right | \\ 
+  &\le \sum_{\nu = -\infty}^\infty \left | c_\nu \right | \\ 
+  &= \lVert \{ c_\nu \} \rVert_1
+\end{align}
+$$
+
+where we define the following $p$-norms for doubly infinite sequences $c_\nu$ 
+
+$$
+\begin{align}
+  \lVert \{ c_\nu \} \rVert_p &= 
+    \left ( \sum_{\nu = -\infty}^\infty \left | c_\nu \right |^p \right )^{\frac{1}{p}} & 
+	\text{for } 0 < p < \infty \\
+  \\ 
+  \lVert \{ c_\nu \} \rVert_\infty &= 
+    \sup \left \{ c_\nu \right \}_{\nu = -\infty}^\infty
+\end{align}
+$$
+
+The set of doubly infinite sequences whose $p$-norm is finite constitute a normed linear space denoted $\mathcal{l}_p$.
+
+$$
+\begin{align}
+  \{ c+\nu \} \in \mathcal{l}_p \Leftrightarrow \lvert \{ c_\nu \} \rVert_p < \infty
+\end{align}
+$$
+
+These normed linear spaces form the following chain of subsets.
+
+$$
+\begin{align}
+  \mathcal{l}_1 \subset \mathcal{l}_p \subset \mathcal{l}_q \subset \mathcal{l}_\infty \\ 
+  \\ 
+  \text{for } 1 < p < q < \infty
+\end{align}
+$$
+
+If $\{ c_\nu \} \in \mathcal{l}_1$ then the sequence $\{ p_n (\theta) \}_n$ corresponds to an absolutely summable infinite series that converges to some value, say $p(\theta)$.  Moreover, $p(\theta)$ is uniformly bounded by $\lVert \{ c_\nu \} \rVert_1$, so that $p(\cdot) \in L_\infty (\mathbb{T})$.  We therefore have a mapping, $\mathcal{F}^{-1}$, from $\mathcal{l}_1$ to $L_\infty (\mathbb{T})$.
+
+$$
+\begin{align}
+  \mathcal{F}^{-1} \left ( \{ c_\nu \} \right ) &= 
+    \sum_{\nu = -\infty}^\infty c_\nu e^{i \nu \theta}
+\end{align}
+$$
+
+### Trigonometric moment problem
+
+As just discussed, a given numeric sequence $c_\bullet = \{ c_\nu \}$ can be employed as the coefficients of a trigonometric series to yield a function, provided that $\{ c_\nu \}$ is absolutely summable, that is, provided that $c_\bullet \in \mathcal{l}_1$.  Now we ask how, if at all, can we extend this mapping of a numeric sequence to a meaningful trigonometric series?  This is known as the trigonometric moment problem and is an open area of research.
+
+To address this question we define the Fourier coefficients of a linear functional $\lambda (\cdot) in \mathcal{B}^*$, where Banach space $\mathcal{B}$ includes the exponential functions $\{ u_\nu \}$ defined on $\mathbb{T}$.
+
+$$
+\begin{align}
+  u_nu = u_nu (e^{i \theta}) = e^{i \nu \theta} &\in \mathcal{B} &\forall \nu \in \mathbb{Z}
+\end{align}
+$$
+
+For such a space $\mathcal{B}$ and for $\lambda \in \mathcal{B}$ we define the Fourier coefficients of $\lambda (\cdot)$ as follows.
+
+$$
+\begin{align}
+  \hat{\lambda} [\nu] &= \lambda (\bar{u}_\nu) \\ 
+  &= \lambda (e^{- i \nu \theta}) &\forall \nu \in \mathbb{Z}
+\end{align}
+$$
+
+This definition is consistent with our previous definition for $\mathcal{B} = L_1 (\mathbb{T})$.  That is, a function $g \in L_1 (\mathbb{T})$ has well defined Fourier coefficients $\{ \hat{g} [\nu] \}$ and also defines a functional $\lambda_g \in L_\infty (\mathbb{T})^*$ with 
+
+$$
+\begin{align}
+  \hat{\lambda}_g [\nu] &= \lambda_g (\bar{u}_\nu) \\ 
+  &= \int_\mathbb{T} g(\theta_\omega) \; e^{- i \nu \theta} \; d\lambda_\mathbb{T} (\omega)
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi g(theta) \; e^{- i \nu \theta} \; d\theta \\ 
+  &= \hat{g} [\nu]
+\end{align}
+$$
+
+Thus the two definitions coincide for $\mathcal{B} = L_1 (\mathbb{T})$.
+
+Now consider the Banach space $\mathcal{B} = \mathcal{C} (\mathbb{T})$ of continuous functions on $\mathbb{T}$.  The corresponding dual space of bounded linear functionals is $\mathcal{M} (\mathbb{T})$, the linear space of finite, complex-valued Borel measures on $\mathbb{T}$.
+
+The Dirac delta functional $\delta_\tau$ is such a functional.  It evaluates a function at a specified point $\tau$, and thus has the following Fourier coefficients.
+
+$$
+\begin{align}
+  \hat{\delta}_\tau [\nu] &= \delta_\tau (\bar{u}_\nu) \\ 
+  &= \bar{u}_\nu (\tau) \\ 
+  &= e^{- i \nu \tau}
+\end{align}
+$$
+
+In general, as previously noted, each functional in $\mathcal{C} (\mathbb{T})^*$ can be identified with a Borel measure $\mu \in \mathcal{M} (\mathbb{T})$ having a continuous component $\mu_c$ and a discrete component $\mu_d$.  In our previous notation we have 
+
+$$
+\begin{align}
+  \lambda_\mu (f) &= \int_\mathbb{T} f(theta_omega) \; d\mu (\omega) \\
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi f(theta) \; g_\mu(\theta) \; d\theta + 
+    \sum_{\tau \in \sigma(\mu_d)} f(\tau) \rho_\tau \; e^{i \theta_\tau}
+\end{align}
+$$
+
+Then the Fourier coefficients of $\lambda_\mu$ are 
+
+$$
+\begin{align}
+  \hat{\lambda}_\mu [\nu] &= \lambda_\mu (\bar{u}_\nu) \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi e^{- i \nu \theta} \; g_\mu(\theta) \; d\theta \; + \; 
+    \sum_{\tau \in \sigma(\mu_d)} e^{- i \nu \tau} \rho_\tau \; e^{i \theta_\tau} \\ 
+  &= \hat{g}_\mu [\nu] \; + \; 
+    \sum_{\tau \in \sigma(\mu_d)} \rho_\tau \; e^{-i (\nu \tau - \theta_\tau)}  \\ 
+  &= \hat{g}_\mu [\nu] \; + \; \hat{\mu}_d [\nu]
+\end{align}
+$$
+
+The first term $\hat{g}_\mu [\nu]$ tends to zero as $| \nu |$ increases.  If measure $\mu$ has one or more atoms $\tau$ then the second term is non-zero and generates a sequence $\{ \hat{\mu}_d [\nu] |}$.  This sequence is a sampling of a periodic or almost-periodic function that remains bounded by $\lVert \mu_d \rVert$ but does not converge to zero.
+
+In any case, the Fourier coefficients of $\Lambda_\mu$ are uniformly bounded by $\vert \Lambda_\mu \rVert$.
+
+$$
+\begin{align}
+  \left | \; \hat{lambda}_\mu [\nu] \; \right | 
+    &le \lVert \rVert < \infty & \forall \nu \in \mathbb{Z}
+\end{align}
+$$
+
+so that 
+
+$$
+\begin{align}
+  \left { \; \hat{lambda}_\mu [\nu] \; \right } 
+    &\in \mathcal{l}_\infty
+\end{align}
+$$
+
+In this setting where $\lambda = \lambda_\mu$ with $\mu \in \mathcal{M} (\mathbb{T})$, the coefficients $\{ \hat{\lambda} [\nu] \}$ are called _Fourier-Stieltjes coefficients_.
+
+The functional $\lambda \in \mathcal{C} (\mathbb{T})^*$ is determined by its Fourier-Stieltjes coefficients.  That is, for any function $f(\cdot) \in \mathcal{C} (\mathbb{T})$ we have the following form of the Parseval relation.
+
+$$
+\begin{align}
+  \lambda(f) &= \lim_{n \rightarrow \infty} \sum_{\nu = -n}^n 
+    \left ( 1 - \frac{|\nu|}{n} \right ) \hat{f} [\nu] \; \hat{\lambda} [\nu]
+\end{align}
+$$
+
+which we abbreviate as 
+
+$$
+\begin{align}
+  \lambda(f) &\sim \sum_{\nu = -\infty}^\infty \hat{f} [\nu] \; \hat{\lambda} [\nu]
+\end{align}
+$$
+
+We've noted that each sequence of Fourier-Stieltjes coefficients is bounded, that is, a member of $\mathcal{l}_\infty$.  In the context of the trigonometric moment problem, we ask whether any member of $\mathcal{l}_\infty$ can be identified as the Fourier-Stieltjes coefficients of some linear functional $\lambda(\cdot)$.  That is, given $\{ c_\nu \} \in \mathcal{l}_\infty$ we seek $\lambda(\cdot)$ such that 
+
+$$
+\begin{align}
+  \hat{\lambda} [\nu] &= c_\nu & \forall \nu \in \mathbb{Z}
+\end{align}
+$$
+
+It turns out that there exist $\{ c_\nu \} \in \mathcal{l}_\infty$ for which there is no matchting $\lambda \in \mathcal{C} (\mathbb{T})^*$.  But there does exist such a functional $\lambda \in \mathcal{B}^*$ defined on a suitable subspace $\mathcal{B} \subset \mathcal{C} (\mathbb{T})$.
+
+For a given $\{ c_\nu \} \in \mathcal{l}_\infty$ the desired $\lambda$ must satisfy the Parserval relation 
+
+$$
+\begin{align}
+  \lambda(f) &\sim \sum_{\nu = -\infty}^\infty \hat{f} [\nu] \; c_\nu & \forall f \in \mathcal{B}
+\end{align}
+$$
+
+Since $\{ c_\nu \}$ is an arbitrary element of $\mathcal{l}_\infty$, and since $\mathcal{l}_\infty$ is the dual of $\mathcal{l}_1$, we require $\{ \hat{f} [\nu] \} \in \mathcal{l}_1$.  That is, we require the Fourier coefficients of $f (\cdot)$ to be absolutely summable.  The set of such functions, denoted $\mathcal{A} (\mathbb{T})$, is the desired Banach subspace $\mathcaal{B} \subset \matchal{C} (\mathbb{T})$.
+
+The dual space $\mathcal{A} (\mathbb{T})^*$ is called the space of pseudo-measures, denoted $\mathcal{PM} (\mathbb{T})$, and is isometrically isomorphic to $\mathcal{l}_\infty$.
+
+If we are given a functional $\lambda \in \mathcal{PM} (\mathbb{T})$ in the form of its Fourier coefficients $\hat{\lambda} [\nu]$ and if we are also given the Fourier coefficient $\hat{f} [\nu]$ of $f \in \mathcal{A} (\mathbb{T})$, then we can use the Parseval relation above to evaluate w$\lambda (f)$.
+
+The Banach spaces $\mathcal{A} (\mathbb{T})$ and $\mathcal{PM} (\mathbb{T})$ lie between the following Banach spaces.
+
+$$
+\begin{align}
+  \mathcal{C}_1 (\mathbb{T}) &\subset \mathcal{A} (\mathbb{T}) \subset \mathcal{C} (\mathbb{T}) \\ 
+  \\ 
+  \mathcal{D}_1 (\mathbb{T}) &\supset \mathcal{PM} (\mathbb{T}) \supset \mathcal{M} (\mathbb{T})
+\end{align}
+$$
+
+That is, a function $f \in \mathcal{A} (\mathbb{T})$ is continuous but may fail to have a continuous derivative at all points.  Correspondingly, a functional $\lambda \in \mathcal{PM} (\mathbb{T})$ can be evaluated at any continuously differentiable function $f \in \mathcal{C}_1 (\mathbb{T})$, but needn't be a Borel measure.
+
+## Example Functions
+
+For purposes of illustration, consider the "sawtooth", "square wave", and "triangular wave" functions shown below.
+
+```{r xmpl_fn_lst}
+xmpl_fn_lst <- xmpl_pf_tst(x = x_vec)
+
+pf_wide    <- xmpl_fn_lst$ x_pf_wide
+pf_long    <- xmpl_fn_lst$ x_pf_long
+g_xmpl_fns <- xmpl_fn_lst$ g_x_pf +
+  ggplot2::xlab("theta")
+
+g_xmpl_fns
+```
+
+Each function is periodic with period $2 \pi$, and each is piecewise linear.  We define these functions as follows, using the previously introduced modular mapping $\theta \mapsto \tilde{\theta} \in (-\pi, \pi]$.
+
+$$
+\begin{align}
+  f_\tau (\theta)   &= \tilde{\theta} \\ 
+  f_\sigma (\theta) &= \text{sgn}(\tilde{\theta}) &= 
+    \begin{cases}
+	  1  & \text{for } \tilde{\theta} > 0 \\ 
+	  0  & \text{for } \tilde{\theta} = 0 \\ 
+	  -1 & \text{for } \tilde{\theta} < 0 
+    \end{cases}
+  \\ 
+  f_\Delta (\theta) &= \frac{\pi}{2} - | \tilde{\theta} |
+\end{align}
+$$
+
+The table and figure below give the coefficients of the respective Fourier approximations of these functions, which are derived in the next sections.
+
+```{r ps_pf_tbl}
+ps_pf_tbl <- tibble::tibble(
+  fn = c("sawtooth", "square wave", "triangular wave"), 
+  idx = c(
+      "$\\; \\nu \\ge 1 \\;$", 
+	  "$\\; (2 \\nu - 1) \\ge 1 \\;$", 
+	  "$\\; (2 \\nu - 1) \\ge 1 \\;$"
+	), 
+  term = c(
+      "$\\; 2 (-1)^{\\nu - 1} \\sin (\\nu \\theta) / \\nu \\;$", 
+	  "$\\; 4 \\sin ((2 \\nu - 1) \\theta) / ((2 \\nu - 1) \\pi) \\;$", 
+	  "$\\; 4 \\cos ((2 \\nu - 1) \\theta) / ((2 \\nu - 1)^2 \\pi) \\;$"
+	)
+)
+```
+
+```{r fs_pf_tbl__kable}
+ps_pf_tbl |> 
+  knitr::kable(
+    format = "html", 
+	escape = FALSE, 
+	caption = "Fourier approximation formulas", 
+	col.names = c("function", "index", "term")
+  )
+```
+
+<br>
+
+```{r xmpl_cs_lst}
+xmpl_cs_lst <- xmpl_cs_tst(k_vec = 0:15)
+xmpl_cs_lst$ g_coeff
+```
+
+<br>
+
+Each of these functions is real-valued and has an average value of zero.  The sawtooth and square wave functions are odd, that is, $f(- \theta) = - f(\theta)$, so their Fourier sums can be expressed as sums of sines, with summation index $\nu$ starting at 1.  The triangular wave function is even, i.e., $f(- \theta) = f(\theta)$, so its Fourier sum can be expressed as a sum of cosines, again with index $\nu$ starting at 1.  Note also that terms of even index $(2 \nu)$ evaluate to zero for the square wave and triangular wave functions.
+
+### Sawtooth coefficients
+
+The Fourier coefficients of the sawtooth function are as follows.
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \left < f, u_\nu \right > \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi t \times e^{-i \nu t} \; dt \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi t \times (\cos(\nu t) - i sin(\nu t)) \; dt
+\end{align}
+$$
+
+Since the term $t \cos (\nu t)$ is an odd function, it integrates to 0 over $(-\pi, \pi]$.  Thus we have 
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \frac{-i}{2 \pi} \int_{- \pi}^\pi t \times sin(\nu t) \; dt
+\end{align}
+$$
+
+The integrand is zero for $\nu = 0$.  For $\nu \ne 0$ we have 
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \frac{-i}{2 \pi} \int_{- \pi}^\pi t \times sin(\nu t) \; dt \\ 
+  &= \frac{-i}{2 \left [ t \times \frac{- \cos (\nu t)}{\nu} \right ]_{- \pi}^\pi \\ 
+  &= \frac{i}{2 \left [ t \times \frac{\cos (\nu t)}{\nu} \right ]_{- \pi}^\pi \\ 
+  &= i \; \frac{ (-1)^\nu }{\nu}
+\end{align}
+$$
+
+The approximating Fourier series is thus 
+
+$$
+\begin{align}
+  S_n(f) \; (\theta) &= \sum_{\nu = -n}^n \hat{f} [\nu] \times u_\nu (e^{i \theta}) \\ 
+  &= \sum_{\nu = 1}^n \left \{ i \frac{(-1)^\nu}{\nu} e^{i \nu \theta} + i \frac{(-1)^{-\nu}}{-\nu} e^{-i \nu \theta} \right \} \\ 
+  &= \sum_{\nu = 1}^n i \frac{(-1)^\nu}{\nu} \left \{ e^{i \nu \theta} - e^{-i \nu \theta} \right \} \\ 
+  &= \sum_{\nu = 1}^n i \frac{(-1)^\nu}{\nu} \left \{ 2 i \sin(\nu \theta) \right \} \\ 
+  &= 2 \sum_{\nu = 1}^n \frac{(-1)^{\nu- 1}}{\nu} \left \{ \sin(\nu \theta) \right \}
+\end{align}
+$$
+
+### Square wave coefficients
+
+Now we develop the Fourier coefficients of the square wave function.
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \left < f, u_\nu \right > \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi \text{sgn}(t) \times e^{-i \nu t} \; dt \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi \text{sgn}(t) \times (\cos(\nu t) - i sin(\nu t)) \; dt
+\end{align}
+$$
+
+Since $\text{sgn}(t)$ is an odd function, so is the term $\text{sgn}(t) \times \cos (\nu t)$, which therefore integrates to zero.  We thus have 
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \frac{-i}{2 \pi} \int_{- \pi}^\pi \text{sgn}(t) \times sin(\nu t) \; dt
+\end{align}
+$$
+
+The integrand equals zero for $\nu = 0$, whereas for $\nu \ne 0$ we have 
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \frac{-i}{\pi} \int_{0}^\pi sin(\nu t) \; dt \\
+  &= \frac{-i}{\pi} \left [ \frac{- \cos (\nu t)}{\nu} \right]_{0}^\pi \\
+  &= \frac{i}{\pi} \left [ \frac{\cos (\nu t)}{\nu} \right]_{0}^\pi \\
+  &= \frac{i}{\pi} \left \{ \frac{(-1)^\nu - 1}{\nu} \right \}
+\end{align}
+$$
+
+Consequently 
+
+$$
+\begin{align}
+  \hat{f} [2 \nu]      &= 0 \\
+  \hat{f} [2 \nu - 1]  &= \frac{-2 i}{2 \nu - 1} \\
+  \hat{f} [-2 \nu + 1] &= \frac{2 i}{2 \nu - 1}
+\end{align}
+$$
+
+Therefore the approximating Fourier series is as follows.
+
+$$
+\begin{align}
+  S_{2 n}(f) \; (\theta) &= S_{2 n - 1}(f) \; (\theta) \\ 
+  &= \sum_{\nu = -2 n + 1}^{2 n - 1} \hat{f} [\nu] \times u_\nu (e^{i \theta}) \\ 
+  &= \sum_{\nu = 1}^n \left \{ 
+       \hat{f} [2 \nu - 1] \; (e^{i (2 \nu - 1) \theta}) \; \
+        \hat{f} [-2 \nu + 1] \; (e^{-i (2 \nu - 1) \theta})	   \right \} \\ 
+  &= \frac{2 i}{\pi} \sum_{\nu = 1}^n \frac{1}{2 \nu - 1} 
+     \left \{-e^{(2 \nu - 1) i \theta} \; + \; e^{(-2 \nu + 1) i \theta} \right \} \\ 
+  &= \frac{2 i}{\pi} \sum_{\nu = 1}^n \frac{- 2 i \sin((2 \nu - 1) \theta)}{(2 \nu - 1}  \\ 
+  &= \frac{4}{\pi} \sum_{\nu = 1}^n \frac{\sin((2 \nu - 1) \theta)}{(2 \nu - 1} 
+\end{align}
+$$
+
+### Triangular wave coefficients
+
+Finally we develop the Fourier coefficients of the triangular wave function.
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \left < f, u_\nu \right > \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi f(t) \times e^{-i \nu t} \; dt \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi \left ( \frac{\pi}{2} - |t| \right ) \times e^{-i \nu t} \; dt \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^\pi \left ( \frac{\pi}{2} - |t| \right ) \; \left ( \cos(\nu t) - i \sin(\nu t) \right ) \; dt
+\end{align}
+$$
+
+Since $f(t)$ is an even function, the term $f(t) \sin(\nu t)$ is an odd function and integrates to zero.  Thus 
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \frac{1}{2 \pi} \int_{- \pi}^\pi \left ( \frac{\pi}{2} - |t| \right ) \; \cos(\nu t) \; dt
+\end{align}
+$$
+
+For $\nu = 0$ we have 
+
+$$
+\begin{align}
+  \hat{f} [0] &= \frac{1}{2 \pi} \int_{- \pi}^\pi \left ( \frac{\pi}{2} - |t| \right ) \; dt \\ 
+  &= \frac{\pi}{2}  - \frac{1}{\pi} \int_{0}^\pi t \; dt \\ 
+  &= \frac{\pi}{2}  - \frac{1}{\pi} \left [ \frac{t^2}{2} \right ]_{0}^\pi \\ 
+  &= 0
+\end{align}
+$$
+
+For $\nu \ne 0$ we have 
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \frac{1}{2 \pi} \int_{- \pi}^\pi \left ( \frac{\pi}{2} - |t| \right ) \; \cos(\nu t) \; dt \\ 
+  &= \frac{1}{4} \int_{- \pi}^\pi \left \cos(\nu t) \; dt \; - \; 
+     \frac{1}{2 \pi} \int_{- \pi}^\pi \left |t| \; \cos(\nu t) \; dt \\ 
+  &= 0 \; - \; \frac{1}{2 \pi} \int_{- \pi}^\pi |t| \; \cos(\nu t) \; dt \\ 
+  &= - \frac{1}{\pi} \int_{0}^\pi t \; \cos(\nu t) \; dt
+\end{align}
+$$
+
+Integration by parts now yields 
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= - \frac{1}{\pi} \int_{0}^\pi t \; \cos(\nu t) \; dt \\ 
+  &= \left [ t \frac{\sin(\nu t)}{\nu} \right ]_{0}^\pi \; + \; 
+     \frac{1}{\pi} \int_{0}^\pi \frac{\sin(\nu t)}{\nu} \; dt \\ 
+  &= 0 \; + \; \frac{1}{\pi} \int_{0}^\pi \frac{\sin(\nu t)}{\nu} \; dt \\ 
+  &= \frac{1}{\pi} left [ \frac{- \cos(\nu t)}{\nu^2} \right ]_{0}^\pi \\ 
+  &= \frac{1}{\pi \nu^2} left \{ (-1)^{\nu + 1} + 1 \right \}
+\end{align}
+$$
+
+Consequently we have 
+
+$$
+\begin{align}
+  \hat{f} [2 \nu]     &= 0 \\
+  \hat{f} [2 \nu - 1] &= \hat{f} [-2 \nu + 1] \\ 
+  &= \frac{2}{\pi (2 \nu - 1)^2}
+\end{align}
+$$
+
+Therefore the approximating Fourier series is as follows.
+
+$$
+\begin{align}
+  S_{2 n} (f) \; (\theta) &= S_{2 n - 1} (f) \; (\theta) \\ 
+  &= \sum_{\nu = -2 n + 1}^{2 n - 1} \hat{f} [\nu] \; u_\nu (e^{i \theta}) \\ 
+  &= \sum_{\nu = 1}^n \hat{f} [2 \nu - 1] \; \left \{ e^{i (2 \nu - 1) \theta} + e^{i (-2 \nu + 1) \theta} \right \} \\ 
+  &= \frac{2}{\pi} \sum_{\nu = 1}^n \frac{1}{(2 \nu - 1)^2} \; 2 \cos ((2 \nu - 1) \theta) \\ 
+  &= \frac{4}{\pi} \sum_{\nu = 1}^n \frac{ \cos ((2 \nu - 1) \theta) }{ (2 \nu - 1)^2 }
+\end{align}
+$$
+
+## Gibbs Phenomenon
+
+```{r saw_d}
+# initialize saw_d = tibble(fn, k_max, theta, t, fa)
+saw_d <- pf_long |> 
+  dplyr::filter(fn == "saw") |> 
+  dplyr::rename(theta = x, fa = value) |> 
+  dplyr::mutate(k_max = 0L) |> 
+  dplyr::select(fn, k_max, theta, t, fa)
+  
+# functions that generate (cos, sin) coefficients
+cs_fn_lst <- saw_cs_fns()
+
+# accumulate approximations per kernel index
+for (k_idx in k_maxima) {
+  fa_temp <- dirichlet_approx(
+    fn        = "saw", 
+	cs_fn_lst = cs_fn_lst, 
+	n_grid    = n_pos_pts, 
+	k_vec     = 0:k_idx, 
+	include_upper = TRUE
+  )
+  # stack approximations
+  saw_d <- saw_d |> 
+    dplyr::bind_rows(fa_temp)
+}
+
+# remove objects having generic names
+rm(cs_fn_lst)
+```
+
+The figure below shows the Fourier seris approximation $S_n(f) (\theta)$ for the sawtooth function, with the number of terms $n$ set to `r k_maxima`, respectively.
+
+```{r g_saw_d}
+g_saw_d <- saw_d |> 
+  dplyr::mutate(k_max = forcats::as_factor(k_max)) |> 
+  ggplot2::ggplot(mapping = aes(
+    x = theta, y = fa, color = k_max
+  )) + 
+  ggplot2::ylab("Sn") + 
+  ggplot2::geom_line(show.legend = FALSE) + 
+  ggplot2::facet_grid(rows = vars(k_max))
+g_saw_d
+```
+
+The original sawtooth function $f(\theta)$ is shown in the top panel.  The 9-term and 25-term approximations, $S_{9} (f)$ and $S_{25} (f)$, are show in the subsequent panels.
+
+Note that $f(\theta)$ has a jump discontinuity at odd multiples of $\pi$.  The approximations $S_n (f)$ improve with increasing $n$, except at these points of discontinuity.  Near these points the approximation error converges to about 9% of the jump magnitude ($2 \pi$ in this case).
+
+This persistent error at jump discontinuities is known a Gibbs phenomenon, named after Josiah Willard Gibbs.
+
+For the sawtooth function, the Gibbs phenomenon prevents convergence of $S_n (f)$ to $f(\cdot)$ in the $L$ norm.  In the 2-norm, however, $S_n (f)$ converges to $f(\cdot)$ for all $f(\cdot) \in L_2(\mathbb{T})$, as previously noted.  (The 3 example functions presented here are all bounded, and thus members of $L_p(\mathbb{T})$ for all $p$.)
+
+## Kernel Functions
+
+We previoiusly introduced weighted sums $S_{n, w} (f)$ of Fourier terms, which can be expressed as the following convolution with $f (\cdot)$.
+
+$$
+\begin{align}
+  S_{n, w} (f) (\theta) &= \sum_{\nu = n}^n w_n [\nu] \; \hat{f} [\nu] \; e^{i \nu \theta} \\ 
+  &= \sum_{\nu = n}^n w_n [\nu] \; \left ( \frac{1}{2 \pi} \int_{- \pi}^{\pi} f(t) \times e^{- i \nu t} \; dt \right ) \; e^{i \nu \theta} \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} \left ( \sum_{\nu = n}^n w_n [\nu] \; e^{i \nu (\theta - t)} \right ) f(t) \; dt \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} W_n (\theta - t) \; f(t) \; dt \\ 
+  &= \left ( W_n * f \right ) (\theta)
+\end{align}
+$$
+
+where the kernel function $W_n (\cdot)$ is the Fourier transform of the weight coefficients.
+
+$$
+\begin{align}
+  W_n (\alpha) = \sum_{\nu = -n}^n w_n [\nu] \; e^{i \nu \alpha}
+\end{align}
+$$
+
+### Dirichlet kernel function
+
+In the case of uniform unit weights, $w_n [\cdot] \equiv 1$, we have $S_{n, w} (f) = S_n (f)$ and $W_n (\cdot) = D_n (\cdot)$, where $D_n (\cdot)$ is the Dirichlet kernel function.
+
+$$
+\begin{align}
+  D_n (\alpha) &= \sum_{\nu = -n}^n e^{i \nu \alpha} \\ 
+  &= 1 + 2 \sum_{\nu = 1}^n cos( \nu \alpha ) \\ 
+  &= \frac{ sin \left ( (n + 1/2) \alpha \right ) }{ sin(\alpha / 2) }
+\end{align}
+$$
+
+The figure below shows $D_n (\theta)$ for $n =$ `r k_maxima`, and for $\theta \in (-2 \pi, 2 \pi)$.
+
+```{r g_dirichlet}
+g_dirichlet <- k_long |> 
+  dplyr::filter(kernel == "Dn") |> 
+  dplyr::rename(Dn = value) |> 
+  dplyr::mutate(n = forcats::as_factor(k_idx)) |> 
+  ggplot2::ggplot(mapping = aes(
+    x = theta, y = Dn, color = n
+  )) +  
+  ggplot2::geom_line() +  
+  ggplot2::facet_grid(rows = vars(n))
+g_dirichlet
+```
+
+As the kernel index $n$ increases, $D_n (\cdot)$ is increasingly concentrated near $\theta \equiv 0$ mod $2 \pi$.  Moreover, from the original definition of $D_n (\cdot)$ as a sum of unitary exponential functions, we see that $D_n (\cdot)$ integrates to unity on $\mathbb{T}$ with respect to measure $\lambda_\mathbb{T}$.
+
+Since $D_n (\cdot)$ is concentrated near 0 mod $2 \pi$ and integrates to unity on $\mathbb{T}$, $S_n (f) (\theta)$ converges to $f (\theta)$ if $f (\cdot)$ is continuous in a neighborhood of $\theta$.  But as previuosly noted, if $f (\cdot)$ has a jump discontinuity at $\theta$, then for all $n$ $S_n (f) (\theta)$ incurs an error near $\theta$ whose magnitude is approximately 9% of the magnitude of the jump (Gibbs phenomenon).
+
+### Fejér kernel function
+
+One way to mitigate Gibbs phenomenon is to take the average of successive Fourier series approximations.
+
+$$
+\begin{align}
+  A_n (f) \; (\theta) &= \frac{1}{n} \sum_{k = 0}^{n-1} S_k (f) \; (\theta)
+\end{align}
+$$
+
+This turns out to be equivalent to the following weighted sum of Fourier terms.
+
+$$
+\begin{align}
+  A_n (f) \; (\theta) &= \frac{1}{n} \sum_{k = 0}^{n-1} S_k (f) \; (\theta) \\ 
+  &= \frac{1}{n} \sum_{k = 0}^{n-1} \sum_{\nu = -n + 1}^{n-1} 
+      \hat{f} [\nu] \; e^{i \nu \theta} \\ 
+  &= \frac{1}{n} \sum_{\nu = -n + 1}^{n-1} (n - |\nu|) \; 
+      \hat{f} [\nu] \; e^{i \nu \theta} \\ 
+  &= \sum_{\nu = -n + 1}^{n-1} \left ( 1 - \frac{|\nu|}{n} \right ) \; 
+      \hat{f} [\nu] \; e^{i \nu \theta}
+\end{align}
+$$
+
+Expanding $\hat{f} [\nu]$ as an integral, $A_n (f) (\theta)$ can be re-expressed as follows.
+
+$$
+\begin{align}
+  A_n (f) \; (\theta) &= \sum_{\nu = -n + 1}^{n-1} \left ( 1 - \frac{|\nu|}{n} \right ) \; 
+      \hat{f} [\nu] \; e^{i \nu \theta} \\ 
+	  &= \sum_{\nu = -n + 1}^{n-1} \left ( 1 - \frac{|\nu|}{n} \right ) \; 
+      \left ( \frac{1}{2 \pi} \int_{- \pi}^{\pi} f(t) \times e^{- i \nu t} \; dt \right )
+	  \times e^{i \nu \theta} \\ 
+	  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} f(t) \times \sum_{\nu = -n + 1}^{n - 1} 
+	  \left ( 1 - \frac{|\nu|}{n} \right \right ) \; e^{i \nu (\theta - t)} \; dt \\ 
+	  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} f(t) \times \sum_{\nu = -n + 1}^{n - 1} 
+	  F_n (\theta - t) \; dt
+\end{align}
+$$
+
+where $F_n (\cdot)$ denotes the Fejér kernel function, named after the Hungarian mathematician Lipót Fejér.
+
+Note that 
+
+$$
+\begin{align}
+  \left |\ D_n(\theta) \right |^2 &= \left | \sum_{\nu = -n}^{n} e^{i \nu \theta} \right |^2 \\ 
+  &= \sum_{\mu = -n}^{n} e^{i \mu \theta} \times \sum_{\nu = -n}^{n} e^{- i \nu \theta} \\ 
+  &= \sum_{\mu, \nu = -n}^{n} e^{i (\mu - \nu) \theta} \\ 
+  &= \sum_{\eta = - 2 n}^{2 n} (2 n + 1 - |\eta|) e^{i \eta \theta} \\ 
+  &= (2 n + 1) \sum_{\eta = - 2 n}^{2 n} (1 - \frac{|\eta|}{2 n + 1}) e^{i \eta \theta} \\ 
+  &= (2 n + 1) F_{2 n + 1} (\theta)
+\end{align}
+$$
+
+so that 
+
+$$
+\begin{align}
+  F_{2 n + 1} (\theta) &= \frac{1}{2 n + 1} \; \left |\ D_n(\theta) \right |^2 \\ 
+  &= \frac{1}{2 n + 1} \; \left( \frac{\sin((n + \frac{1}{2}) \; \theta)}{\sin( \frac{1}{2} \theta)} \right )^2
+\end{align}
+$$
+
+## DFT: the discrete Fourier transform
+
+## Closing Remarks
+
+## Resources
+
+[Trigonometric moment problem](https://en.wikipedia.org/wiki/Trigonometric_moment_problem)
+
+## Trigonometric Series
+
+### Trigonometric moment problem
+
+Given $\mathcal{F} (f) = \{ \hat{f}[\nu] \}$ with $f \in L_1(\mathbb{T})$ we can reconstruct $f (\cdot)$ as $\mathcal{F}^{-1} (\hat{f}[\cdot])$.  Now we ask, under what conditions can this inverse mapping be applied to a given numeric sequence $c_{\bullet} = \{ c_\nu \}$?  This is known as the trigonometric moment problem.
+

@@ -1,0 +1,201 @@
+##### 
+### 
+#     kernel_fns.R
+#     
+#     Dirichlet, Fejer, and Hahn kernel functions
+### 
+##### 
+
+### 
+#   dirichlet_krnl()
+#     
+#     return a vector that evaluates the Dirichlet kernel 
+#     on a set of grid points spanning [0, 2 * pi)
+### 
+dirichlet_krnl <- function(
+  n_grid = 49L,  # <int> num interior grid points in unit interval
+  k_max  =  2L,  # <int> sum Fourier terms for k in -k_max:k_max
+  scale  = FALSE # <lgl> divide sum by (2 * pi)
+) {
+  # map grid on (0, 1) to grid on (0, 2 * pi)
+  u     <- (1:n_grid) / (n_grid + 1)
+  theta <- u * (2 * pi)
+  
+  # ratio along interior grid points
+  numer = sin(((2 * k_max) + 1) * theta / 2)
+  denom = sin(theta / 2)
+  ratio = numer / denom
+  
+  # limit at theta = 0
+  rat_0 = (2 * k_max) + 1
+  
+  # kernel evalated at n_grid + 1 points
+  krnl <- c(rat_0, ratio)
+  
+  # force kernel function to integrate to unity?
+  if (scale) {
+    krnl <- krnl / (2 * pi)
+  }
+  
+  return(krnl)
+}
+
+### 
+#   fejer_krnl()
+#     
+#     return a vector that evaluates the Fejer kernel 
+#     on a set of grid points spanning [0, 2 * pi)
+### 
+fejer_krnl <- function(
+  n_grid = 49L, # <int> num interior grid points in unit interval
+  k_max  =  2L  # <int> sum Fourier terms for k in -k_max:k_max
+) {
+  # map grid on (0, 1) to grid on (0, 2 * pi)
+  u     <- (1:n_grid) / (n_grid + 1)
+  theta <- u * (2 * pi)
+  
+  # ratio along interior grid points
+  numer = sin(k_max * theta / 2)
+  denom = sin(theta / 2)
+  ratio = ((numer / denom)^2) / k_max
+  
+  # limit at theta = 0
+  rat_0 = k_max
+  
+  # kernel evalated at n_grid + 1 points
+  krnl <- c(rat_0, ratio)
+  
+  return(krnl)
+}
+
+### 
+#   hann_krnl()
+#     
+#     return a vector that evaluates the Hann kernel 
+#     on a set of grid points spanning [0, 2 * pi)
+### 
+hann_krnl <- function(
+  k_max  =  2L,  # <int> sum Fourier terms for k in -k_max:k_max
+  i_add  = 24L,  # <int> n_grid = 2 * i_add * k_max
+  scale  = FALSE # <lgl> divide sum by (2 * pi)
+) {
+  # Dirichlet kernel evaluated at 
+  #   (2 * pi) * (0:n_grid) / n_grid
+  #   = pi * (0:n_grid) / (i_add * k_max)
+  dk_ref <- dirichlet_krnl(
+    n_grid = 2L * i_add * k_max, 
+	k_max  = k_max, 
+	scale  = scale
+  )
+  dk_pull <- dk_ref |> x_rotate(i_add = i_add)
+  dk_push <- dk_ref |> x_rotate(i_add = - i_add)
+  
+  krnl <- ((2 * dk_ref) + dk_pull + dk_push)/4
+  
+  return(krnl)
+}
+
+### 
+#   hann_kernel_tbl()
+#     
+#     tibble( theta, hann )
+#     for theta interior to (- 2 pi, 2 pi)
+### 
+hann_kernel_tbl <- function(
+  k_max  =  2L,  # <int> sum Fourier terms for k in -k_max:k_max
+  i_add  = 24L,  # <int> n_grid = 2 * i_add * k_max
+  scale  = FALSE # <lgl> divide sum by (2 * pi)
+) {
+  n_grid <- 2L * i_add * k_max
+  
+  # positive argument alpha
+  u     <- (1:n_grid) / (n_grid + 1)
+  alpha <- u * (2 * pi)
+  
+  # Dirichlet kernel evaluated at 
+  #   (2 * pi) * (0:n_grid) / n_grid
+  #   = pi * (0:n_grid) / (i_add * k_max)
+  dk_ref <- dirichlet_krnl(
+    n_grid = n_grid, 
+	k_max  = k_max, 
+	scale  = scale
+  )
+  dk_pull <- dk_ref |> x_rotate(i_add = i_add)
+  dk_push <- dk_ref |> x_rotate(i_add = - i_add)
+  
+  hk <- ((2 * dk_ref) + dk_pull + dk_push)/4
+  
+  # now inlcude non-positive arguments
+  hk_tbl <- tibble::tibble(
+    theta = c( - alpha [n_grid:1], 0, alpha ), 
+    Hn    = c( hk [(n_grid + 1):2], hk )
+  )
+  
+  return(hk_tbl)
+}
+
+### 
+#   list_kernel_tbls()
+#     
+#     tibble( theta, dirichlet, fejer )
+#     for theta interior to (- 2 pi, 2 pi)
+#     in both wide and long formats
+### 
+list_kernel_tbls <- function(
+  n_grid = 49L, # <int> num interior grid points in unit interval
+  k_max  =  2L  # <int> index of (Dirichlet, Fejer) kernels
+) {
+  # positive argument alpha
+  u     <- (1:n_grid) / (n_grid + 1)
+  alpha <- u * (2 * pi)
+  
+  # kernels evaluated at non-negative arguments
+  dk <- dirichlet_krnl (n_grid, k_max)
+  fk <- fejer_krnl     (n_grid, k_max)
+  
+  # now inlcude non-positive arguments
+  krnl_wide <- tibble::tibble(
+    theta = c( - alpha [n_grid:1], 0, alpha ), 
+    Dn    = c( dk [(n_grid + 1):2], dk ), 
+    Fn    = c( fk [(n_grid + 1):2], fk )
+  )
+  
+  # long format
+  krnl_long <- krnl_wide |> 
+    tidyr::pivot_longer(
+	cols      = Dn:Fn, 
+	names_to  = "kernel", 
+	values_to = "value"
+  )
+  
+  return(list(
+    krnl_wide = krnl_wide, 
+	krnl_long = krnl_long
+  ))
+}
+
+### 
+#   plot_kernel_tbl()
+#     
+#     plot tibble( theta, dirichlet, fejer )
+#     for theta interior to (- 2 pi, 2 pi)
+### 
+plot_kernel_tbl <- function(
+  n_grid = 49L, # <int> num interior grid points in unit interval
+  k_max  =  2L  # <int> sum Fourier terms for k in -k_max:k_max
+) {
+  krnl_lst   <- list_kernel_tbls (n_grid, k_max)
+  krnl_long  <- krnl_lst$ krnl_long
+  g_krnl_tbl <- krnl_long |> 
+    ggplot2::ggplot(mapping = aes(
+	  x = theta, y = value, colour = kernel
+	)) + 
+	  ggplot2::geom_line() + 
+	  ggplot2::facet_grid(rows = vars(kernel))
+  
+  return(g_krnl_tbl)
+}
+
+### 
+# EOF 
+### 

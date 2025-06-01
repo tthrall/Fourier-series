@@ -1,0 +1,8 @@
+"0","#| label: g_sign_approx"
+"0",""
+"0","g_sign_approx <- sign_approx_tbl |> "
+"0","  ggplot(mapping = aes("
+"0","    x = u, y = y_re"
+"0","  )) + geom_line()"
+"0",""
+"0","g_sign_approx"

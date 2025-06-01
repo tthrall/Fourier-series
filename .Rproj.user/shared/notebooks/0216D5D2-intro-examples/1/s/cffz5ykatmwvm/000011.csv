@@ -1,0 +1,8 @@
+"0","symbol_tbl |> "
+"0","  dplyr::select(symbol, dscr) |> "
+"0","  knitr::kable("
+"0","    format = ""html"", "
+"0","	escape = FALSE, "
+"0","	caption = ""Glossary of Mathematical Symbols (s)"", "
+"0","	col.names = c(""s"", ""description"")"
+"0","  ) "

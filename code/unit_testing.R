@@ -1,0 +1,240 @@
+##### 
+### 
+#     unit_testing.R
+#       test source code in this directory
+### 
+##### 
+
+
+### 
+#   pf_factory
+### 
+
+### 
+#   mod_0_tst()
+### 
+mod_0_tst <- function(
+  x = (- 4L:4L)/2, # <dbl> input vector
+  p = 1L           # <dbl> half-period
+) {
+  tst_tbl <- tibble::tibble(
+    x   = x, 
+	upr = x |> mod_0(p = p, include_upper = TRUE), 
+	lwr = x |> mod_0(p = p, include_upper = FALSE)
+  )
+  return(tst_tbl)
+}
+
+### 
+#   f_to_pf_tst()
+### 
+f_to_pf_tst <- function(
+  x = (- 4L:4L)/2,      # <dbl> input vector
+  f = function(x) x^3L, # input function
+  p = 1L                # <dbl> half-period
+) {
+  t_lwr  <- mod_0(x, p, include_upper = FALSE)
+  t_upr  <- mod_0(x, p, include_upper = TRUE)
+  pf_lwr <- f_to_pf(f, p, include_upper = FALSE)
+  pf_upr <- f_to_pf(f, p, include_upper = TRUE)
+  
+  tst_tbl <- tibble::tibble(
+    x     = x, 
+	t_lwr = t_lwr, 
+	f_lwr = pf_lwr (x), 
+	t_upr = t_upr, 
+	f_upr = pf_upr (x)
+  )
+  return(tst_tbl)
+}
+
+### 
+#   pf_tbl_tst()
+### 
+pf_tbl_tst <- function(
+  x  = (- 4L:4L)/2, # <dbl> input vector
+  p  = 1L,          # <dbl> half-period
+  pf = saw_pf       # periodic function
+) {
+  upr_tbl <- x |> pf_tbl(
+    pf = pf, p = p, include_upper = TRUE) |> 
+	dplyr::mutate(upr = TRUE) |> 
+	dplyr::select(upr, everything())
+  lwr_tbl <- x |> pf_tbl(
+    pf = pf, p = p, include_upper = FALSE) |> 
+	dplyr::mutate(upr = FALSE) |> 
+	dplyr::select(upr, everything())
+  tst_tbl <- dplyr::bind_rows(
+    upr_tbl, 
+	lwr_tbl)
+  return(tst_tbl)
+}
+
+### 
+#   pf_cs_fns_tst()
+### 
+pf_cs_fns_tst <- function(
+  k_vec = 0:2, # <int> selected k for coeff[k]
+  fn  = "saw", # <chr> pf() function ID
+  pf_cs_fn_lst = saw_cs_fns # <lst> generates (cos, sin) coefficients
+) {
+  c_fn <- pf_cs_fn_lst$ c_fn
+  s_fn <- pf_cs_fn_lst$ s_fn
+  
+  pf_cs_tbl <- tibble::tibble(
+    fn    = fn, 
+	k_vec = k_vec, 
+	c_vec = c_fn(k_vec), 
+	s_vec = s_fn(k_vec)
+  )
+  return(pf_cs_tbl)
+}
+
+
+### 
+#   xmpl_fns
+### 
+
+### 
+#   xmpl_pf_tst()
+#   
+#     Given x create long tibble (fn, x, t, value), 
+#     where fn <chr> ranges over the identifiers of 
+#     the example periodic functions in this directory.
+#   
+#     Return list: (x_pf_wide, x_pf_long, g_x_pf)
+### 
+xmpl_pf_tst <- function(
+  x = NULL,            # <dbl> input vector
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  if (is.null(x)) {
+    # (-1, 1) interior grid-points
+	nu_pos <- 121L
+	u_pos  <- (1:nu_pos) / (nu_pos + 1)
+	u_neg  <- - u_pos [nu_pos:1]
+	u      <- c( u_neg, 0, u_pos )
+	
+	# scale to multiple periods
+	m_periods <- 2L
+	x <- (m_periods * p) * u
+  }
+  
+  # x_pf_long = tibble (fn, x, t, value)
+  x_pf_long <- xmpl_pf_vecs(
+    x, p, include_upper)
+  
+  x_pf_wide <- x_pf_long |> 
+    tidyr::pivot_wider( names_from = "fn" )
+  
+  g_x_pf <- x_pf_long |> 
+    dplyr::mutate(fn = forcats::as_factor(fn)) |> 
+	ggplot2::ggplot(mapping = aes(
+	  x = x, y = value, color = fn
+	)) + 
+	ggplot2::geom_line() + 
+	ggplot2::facet_grid(rows = vars(fn))
+  
+  return(list(
+    x_pf_wide = x_pf_wide, 
+	x_pf_long = x_pf_long, 
+	g_x_pf    = g_x_pf
+  ))
+}
+
+### 
+#   dirichlet_approx_tst()
+### 
+dirichlet_approx_tst <- function(
+  fn = "fn",        # function ID
+  cs_fn_lst = NULL, # (cos, sin) generating functions
+  n_grid = 49L,     # <int> num interior grid points
+  k_vec = 0:2,      # <int> freq indices of (cos, sin) coefficients
+  inlcude_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  if ( is.null( cs_fn_lst ) ) {
+    cs_fn_lst <- saw_cs_fns()
+  }
+  
+  fa_tbl <- dirichlet_approx(
+    fn        = fn, 
+	cs_fn_lst = cs_fn_lst, 
+	n_grid    = n_grid, 
+	k_vec     = k_vec, 
+	include_upper = include_upper
+  )
+  return(fa_tbl)
+}
+
+### 
+#   window_approx_tst()
+### 
+window_approx_tst <- function(
+  fn = "fn",        # function ID
+  cs_fn_lst = NULL, # (cos, sin) generating functions
+  n_grid = 49L,     # <int> num interior grid points
+  k_vec = 0:2,      # <int> freq indices of (cos, sin) coefficients
+  inlcude_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  if ( is.null( cs_fn_lst ) ) {
+    cs_fn_lst <- saw_cs_fns()
+  }
+  
+  fa_tbl <- window_approx(
+    fn        = fn, 
+	cs_fn_lst = cs_fn_lst, 
+	n_grid    = n_grid, 
+	k_vec     = k_vec, 
+	include_upper = include_upper
+	# wf = Fejer window by default
+  )
+  return(fa_tbl)
+}
+
+### 
+#   xmpl_cs_tst()
+### 
+xmpl_cs_tst <- function(
+    k_vec = 0:15 # <int> freq indices of (cos, sin) coefficients
+) {
+  # (fn, k, c_vec, s_vec)
+  coeff_tbl <- xmpl_cs_vecs(k_vec)
+  
+  # (fn, k, cs, coeff)
+  coeff_long <- coeff_tbl |> 
+    tidyr::pivot_longer(
+      cols = c(c_vec, s_vec), 
+      names_to = "cs_vec", 
+      values_to = "coeff") |> 
+    dplyr::mutate(
+      cs = dplyr::case_when(
+        cs_vec == "c_vec" ~ "cos", 
+        cs_vec == "s_vec" ~ "sin"
+      )) |> 
+    dplyr::select(fn, k, cs, coeff)
+  
+  # plot, row = fn, col = cs
+  g_coeff <- coeff_long |> 
+    dplyr::mutate(across(
+      .cols = c(fn, cs), .fns = forcats::as_factor
+    )) |> 
+    ggplot2::ggplot(mapping = aes(
+      x = k, y = coeff, color = fn, fill = fn
+    )) + 
+    ggplot2::geom_col() + 
+    ggplot2::facet_grid(
+      rows = vars(fn), 
+      cols = vars(cs)
+    )
+  
+  return(list(
+    coeff_tbl  = coeff_tbl, 
+    coeff_long = coeff_long, 
+    g_coeff    = g_coeff
+  ))
+}
+
+### 
+# EOF 
+### 

@@ -1,0 +1,10 @@
+title	link
+Cesàro summation	https://en.wikipedia.org/wiki/Cesàro_summation
+Fast Fourier transform	https://en.wikipedia.org/wiki/Fast_Fourier_transform
+Fejér kernel	https://en.wikipedia.org/wiki/Fejér_kernel
+Gibbs phenomenon	https://en.wikipedia.org/wiki/Gibbs_phenomenon
+Hann function	https://en.wikipedia.org/wiki/Hann_function
+Hilbert space	https://en.wikipedia.org/wiki/Hilbert_space
+Hölder's inequality	https://en.wikipedia.org/wiki/Hölder%27s_inequality
+Wiener's lemma	https://en.wikipedia.org/wiki/Wiener%27s_lemma
+Window function	https://en.wikipedia.org/wiki/Window_function

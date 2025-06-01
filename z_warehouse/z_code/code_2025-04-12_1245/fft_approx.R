@@ -1,0 +1,82 @@
+##### 
+### 
+#     fft_approx.R
+#     
+#     Function stats::fft() applies the fast Fourier transform (FFT) 
+#     to compute the discrete Fourier transform (DFT) or its inverse 
+#     (IDFT) of input vector x.
+#     
+#     Function fft_approx() sets to zero the higher harmonics of x, 
+#     then takes the IDFT if these truncated coefficients, thereby 
+#     returning a low-frequency approximation to x.
+### 
+##### 
+
+### 
+#   fft_approx()
+#     
+#     Return a long tibble containing one or more 
+#     low-frequency approximations to input vector x.
+### 
+fft_approx <- function(
+    x,          # <dbl> input vector
+    degree = 1L # <int> degree(s) of trig polynomial approx
+) {
+  n_x <- length(x)
+  assertthat::assert_that(n_x >= 4)
+  
+  h_x <- floor( n_x / 2 ) |> as.integer()
+  assertthat::assert_that(
+    min(degree) >= 0L, 
+    max(degree) <= h_x
+  )
+  
+  # c_x: complex Fourier coefficients
+  c_x <- ( stats::fft(x) ) / n_x
+  
+  # idx: frequency index of c_x
+  if ( (n_x %% 2L) == 0L ) {
+    idx <- c(
+      0:h_x, 
+      - ( (h_x - 1):1 )
+    )
+  } else {
+    idx <- c(
+      0:h_x, 
+      - (h_x:1) 
+    )
+  }
+  
+  # z_x: restore x
+  z_x <- stats::fft( c_x, inverse = TRUE )
+  
+  # initialize return tibble
+  fft_tbl <- tibble::tibble(
+    d   = rep.int(h_x, n_x), 
+    idx = idx, 
+    x   = x, 
+    c_x = c_x, 
+    z_x = z_x
+  )
+  
+  # create and stack: one tibble per degree
+  for( d in degree ) {
+    # a_x: truncation of coefficients c_x
+    a_x <- c_x
+    a_x[ abs(idx) > d ] <- 0+0i
+    
+    fft_tbl <- fft_tbl |> 
+      dplyr::bind_rows(tibble::tibble(
+        d   = rep.int(d, n_x), 
+        idx = idx, 
+        x   = x, 
+        c_x = a_x, 
+        z_x = stats::fft( a_x, inverse = TRUE )
+      ))
+  }
+  return(fft_tbl)
+}
+
+### 
+# EOF 
+### 

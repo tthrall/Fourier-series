@@ -1,0 +1,7 @@
+"0","ps_pf_tbl |> "
+"0","  knitr::kable("
+"0","    format = ""html"", "
+"0","	escape = FALSE, "
+"0","	caption = ""Fourier approximation formulas"", "
+"0","	col.names = c(""function"", ""index"", ""term"")"
+"0","  )"

@@ -1,0 +1,7 @@
+"0","books_tbl |> "
+"0","  list_links(a_idx = 3L) |> "
+"0","  knitr::kable("
+"0","    format    = ""html"", "
+"0","	escape    = FALSE, "
+"0","	col.names = """""
+"0","  ) "

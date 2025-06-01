@@ -1,0 +1,56 @@
+
+
+```{r local_source}
+# beta_convolution
+# mix indep Beta variates; calculate density and cum probability
+# source(here("code", "beta_convolution.R"))
+
+# beta_grid
+# determine (p, q) grids for qbeta(p, r, s) and pbeta(q, r, s)
+# source(here("code", "beta_grid.R"))
+
+# fft_approx
+# low-frequency approximation via FFT
+# source(here("code", "fft_approx.R"))
+
+# gen_bmix_tbl
+# generate several correlated beta mixture variables
+# source(here("code", "gen_bmix_tbl.R"))
+
+# kable_custom
+# print tables in customized formats
+# source(here("code", "kable_custom.R"))
+
+# retain_tbl
+# optionally write an R object to a file
+# source(here("code", "retain_tbl.R"))
+
+# slice_more
+# extend dplyr::slice functions
+# source(here("code", "slice_more.R"))
+
+# plot_beta
+# plot dbeta(q, r, s) and pbeta(q, r, s)
+# source(here("code", "plot_beta.R"))
+
+# plot output of beta_convolve()
+# source(here("code", "test_beta_convolve.R"))
+
+# test_unif_convolve
+# plot output of unif_convolve()
+# source(here("code", "test_unif_convolve.R"))
+
+# u_grid
+# generate equispaced points within unit interval
+source(here("code", "u_grid.R"))
+
+# unif_convolution
+# uniform mixture; calculate density and cum probability
+source(here("code", "unif_convolution.R"))
+
+# xl_data_hdr
+# read Excel tab when data are separated from col names
+# source(here("code", "xl_data_hdr.R"))
+
+```
+

@@ -1,0 +1,8 @@
+"0","xmpl_fn_lst <- xmpl_pf_tst(x = x_vec)"
+"0",""
+"0","pf_wide    <- xmpl_fn_lst$ x_pf_wide"
+"0","pf_long    <- xmpl_fn_lst$ x_pf_long"
+"0","g_xmpl_fns <- xmpl_fn_lst$ g_x_pf +"
+"0","  ggplot2::xlab(""theta"")"
+"0",""
+"0","g_xmpl_fns"

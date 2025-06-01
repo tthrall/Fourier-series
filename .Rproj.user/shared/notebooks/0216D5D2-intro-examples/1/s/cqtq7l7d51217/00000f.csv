@@ -1,0 +1,8 @@
+"0","# stack Dirichlet approx atop Fejér approx"
+"0","saw_d_f <- saw_d |> "
+"0","  dplyr::mutate(kernel = ""Dn"") |> "
+"0","  dplyr::select(kernel, everything()) |> "
+"0","  dplyr::bind_rows( saw_f |> "
+"0","    dplyr::mutate(kernel = ""Fn"") |> "
+"0","    dplyr::select(kernel, everything())"
+"0","  )"

@@ -1,0 +1,4 @@
+"0","# modify approx degree to match m_periods"
+"0","saw_fft_approx <- pf_wide$ saw |> "
+"0","  fft_approx("
+"0","    degree = m_periods * k_maxima)"

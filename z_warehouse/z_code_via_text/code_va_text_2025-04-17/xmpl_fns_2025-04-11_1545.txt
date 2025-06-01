@@ -1,0 +1,798 @@
+##### 
+### 
+#     xmpl_fns.R
+#     
+#       a few 2-pi periodic, piecewise linear functions
+### 
+##### 
+
+### 
+#   mod_0()
+#     
+#     t <- x mod (-p, p]
+#     
+#     Note: x %% (2p) in [0, 2p)
+### 
+mod_0 <- function(
+  x,                   # <dbl> input vector
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  assertthat::assert_that(p > 0)
+  
+  if ( max( abs(x) ) < p ) {
+    # avoid unnecessary computation
+	t <- x
+  } else {
+    if (include_upper) {
+	  # t in (-p, p]
+	  t <- p - ((-x - p) %% (2 * p))
+	} else {
+	  # t in [-p, p)
+	  t <- ((x + p) %% (2 * p)) - p
+	}
+  }
+  return(t)
+}
+
+### 
+#   f_to_pf()
+#     Return a periodic version pf() of given function f()
+#     
+#     t <- x mod (-p, p]
+#     
+#     pf( x ) = f( t )
+### 
+f_to_pf <- function(
+  f,                   # input function
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  assertthat::assert_that(p > 0)
+  
+  pf <- function(
+    x,  # <dbl> input vector
+    ... # additional arguments to f()
+  ) {
+    t <- mod_0(x, p, include_upper)
+	return( f(t, ...) )
+  }
+  return(pf)
+}
+
+### 
+#   saw_pf()
+#     Sawtooth periodic function
+### 
+saw_pf <- function(
+  x,                   # <dbl> input vector
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  assertthat::assert_that(p > 0)
+  t <- mod_0(x, p, include_upper)
+  return(t)
+}
+
+### 
+#   sqr_pf()
+#     Square wave periodic function
+### 
+sqr_pf <- function(
+  x,                   # <dbl> input vector
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  assertthat::assert_that(p > 0)
+  t <- mod_0(x, p, include_upper)
+  return( sign(t) )
+}
+
+### 
+#   tri_pf()
+#     Triangular wave periodic function
+### 
+tri_pf <- function(
+  x,                   # <dbl> input vector
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  assertthat::assert_that(p > 0)
+  t <- mod_0(x, p, include_upper)
+  return( ( p/2 ) - abs(t) )
+}
+
+### 
+#   pf_tbl()
+#     
+#     given vector x and periodic function pf(), 
+#     return tibble (x, t, pf(t))
+#     
+#     where:
+#     
+#     t <- x mod (-p, p]
+#     
+### 
+pf_tbl <- function(
+  x,                   # <dbl> input vector
+  pf,                  # periodic function
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  # t <- x mod (-p, p]
+  t <- mod_0 (x, p, include_upper)
+  
+  # evaluate function
+  f <- pf(t, p, include_upper)
+  
+  return(tibble::tibble(
+    x = x, t = t, f = f
+  ))
+}
+
+### 
+#   xmpl_pf_vecs()
+#     
+#     Given x, return tibble (fn, x, t, value)
+#     where fn <chr> ranges over the identifyiers of 
+#     the example periodic functions in this file.
+#     
+### 
+xmpl_pf_vecs <- function(
+  x,                   # <dbl> input vector
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  # x_reg_tbl = tibble (fn, pf, cs_fns)
+  x_reg_tbl <- xmpl_registry()
+  
+  # initialize return tibble
+  x_pf_long <- tibble::tibble()
+  
+  # t <- x mod (-p, p]
+  t <- mod_0(x = x, p = p, include_upper = include_upper)
+  
+  # tibble for each example function: (fn, x, t, value)
+  for (idx in 1:nrow(x_reg_tbl)) {
+    x_fn <- x_reg_tbl [[idx, "fn"]]
+    x_pf <- x_reg_tbl [[idx, "pg"]] [[1]]
+	
+	tmp_tbl <- tibble::tibble(
+	  fn    = x_fn, 
+	  x     = x, 
+	  t     = t, 
+	  value = x_pf (t)
+	)
+	# append tmp_tbl
+	x_pf_long <- x_pf_long |> 
+	  dplyr::bind_rows(tmp_tbl)
+  }
+  return(x_pf_long)
+}
+
+### 
+#   pf_cs_vecs()
+#     
+#     Given: functions that generate (cos, sin) coefficients of pf()
+#     
+#     Return: tibble( k, c_vec, s_vec ) of (cos, sin) coefficients
+#     
+#     Note: k in 0:k_max
+#     
+### 
+pf_cs_vecs <- function(
+  k_vec = 0:2, # <int> freq indices of returned coefficients
+  c_fn,        # <dbl> function that generates pf() cosine coefficients
+  s_fn         # <dbl> function that generates pf() sine coefficients
+) {
+  coeff_tbl <- tibble::tibble(
+    k     = k_vec, 
+	c_vec = c_fn(k_vec), 
+	s_vec = s_fn(k_vec)
+  )
+  return(coeff_tbl)
+}
+
+### 
+#   saw_cs_fns()
+#     
+#     Sawtooth
+#     
+#     Return: functions that generate (cos, sin) coefficients
+#     
+#     Note: k in 0:k_max
+#     
+### 
+saw_cs_fns <- function() {
+  
+  c_fn <- function(k_vec) 0 * k_vec
+  
+  s_fn <- function(
+    k_vec # <int> freq indices of returned coefficient vector
+  ) {
+    # initialize return vector
+	s_vec = 0 * k_vec
+	
+	# non-zero coefficients
+	k_nz <- k_vec [ k_vec != 0L ]
+	s_vec [ k_vec != 0L ] <- 
+	  (-1L)^k_nz / k_nz
+	
+	# correction
+	s_vec <- (-2) * s_vec
+	
+	return(s_vec)
+  }
+  return(list(
+    c_fn <- c_fn, 
+	s_fn <- s_fn
+  ))
+}
+
+### 
+#   sqr_cs_fns()
+#     
+#     Square wave
+#     
+#     Return: functions that generate (cos, sin) coefficients
+#     
+#     Note: k in 0:k_max
+#     
+### 
+sqr_cs_fns <- function() {
+  
+  c_fn <- function(k_vec) 0 * k_vec
+  
+  s_fn <- function(
+    k_vec # <int> freq indices of returned coeff[k]
+  ) {
+    # initialize coefficients
+	s_vec = 0 * k_vec
+	
+	# non-zero coefficients
+	k_nz <- k_vec [ k_vec %% 2L != 0L ]
+	s_vec [ k_vec %% 2L != 0L ] <- 
+	  1 / k_nz
+	
+	# correction
+	s_vec <- (4 / pi) * s_vec
+	
+	return(s_vec)
+  }
+  return(list(
+    c_fn <- c_fn, 
+	s_fn <- s_fn
+  ))
+}
+
+### 
+#   tri_cs_fns()
+#     
+#     Triangular wave
+#     
+#     Return: functions that generate (cos, sin) coefficients
+#     
+#     Note: k in 0:k_max
+#     
+### 
+tri_cs_fns <- function() {
+  
+  s_fn <- function(k_vec) 0 * k_vec
+  
+  c_fn <- function(
+    k_vec # <int> freq indices of returned coeff[k]
+  ) {
+    # initialize coefficients
+	c_vec = 0 * k_vec
+	
+	# non-zero coefficients
+	k_nz <- k_vec [ k_vec %% 2L != 0L ]
+	c_vec [ k_vec %% 2L != 0L ] <- 
+	  1 / (k_nz^2l)
+	
+	# correction
+	c_vec <- (4 / pi) * c_vec
+	
+	return(c_vec)
+  }
+  return(list(
+    c_fn <- c_fn, 
+	s_fn <- s_fn
+  ))
+}
+
+### 
+#   xmpl_registry()
+#     
+#     Example periodic functions
+#     
+#     Return: tibble( fn, pf, cs_fns)
+#     
+#     Note: pf (and cs_fns) is a column 
+#           whose elements are lists of length 1
+#     
+### 
+xmpl_registry <- function() {
+  x_reg_tbl <- tibble::tribble(
+    ~fn, ~pf, ~cs_fns, 
+	"saw", saw_pf, saw_cs_fns, 
+	"sqr", sqr_pf, sqr_cs_fns, 
+	"tri", tri_pf, tri_cs_fns
+  )
+  return(x_reg_tbl)
+}
+
+### 
+#   xmpl_cs_vecs()
+#     
+#     Piecewise periodic functions: Fourier coefficients
+#     
+#     Return: tibble( fn, k, c_vec, s_vec ) of (cos, sin) coefficients
+#     
+#     Note: k in 0:k_max, typically
+#     
+### 
+xmpl_cs_vecs <- function(
+  k_vec = 0:15 # <int> freq indices k of returned coeff [k]
+) {
+  # x_reg_tbl = tibble (fn, pf, cs_fns)
+  x_reg_tbl <- xmpl_registry()
+  
+  # initialize return tibble
+  coeff_tbl <- tibble::tibble()
+  
+  # tibble for each example function: (fn, k, c_vec, s_vec)
+  for (idx in 1:nrow(x_reg_tbl)) {
+    fn_tag <- x_reg_tbl [[idx, "fn"]]
+    cs_lst <- x_reg_tbl [[idx, "fn"]] [[1]] ()
+	
+	tmp_tbl <- tibble::tibble(
+	  fn    = fn_tag, 
+	  k     = k_vec, 
+	  c_vec = cs_lst$ c_fn (k), 
+	  s_vec = cs_lst$ s_fn (k)
+	)
+	
+	# append tmp_tbl
+	coeff_tbl <- coeff_tbl |> 
+	  dplyr::bind_rows(tmp_tbl)
+  }
+  return(coeff_tbl)
+}
+
+### 
+#   xmpl_cs_vecs_OLD()
+#     
+#     Piecewise periodic functions: Fourier coefficients
+#     
+#     Return: tibble( fn, k, c_vec, s_vec ) of (cos, sin) coefficients
+#     
+#     Note: k in 0:k_max, typically
+#     
+### 
+xmpl_cs_vecs_OLD <- function(
+  k_vec = 0:15 # <int> freq indices k of returned coeff [k]
+) {
+  saw_cs_lst <- saw_cs_fns()
+  saw_tbl <- tibble::tibble(
+    fn = "saw", 
+	k = k_vec, 
+	c_vec = saw_cs_lst$ c_fn (k), 
+	s_vec = saw_cs_lst$ s_fn (k)
+  )
+  
+  sqr_cs_lst <- sqr_cs_fns()
+  sqr_tbl <- tibble::tibble(
+    fn = "sqr", 
+	k = k_vec, 
+	c_vec = sqr_cs_lst$ c_fn (k), 
+	s_vec = sqr_cs_lst$ s_fn (k)
+  )
+  
+  tri_cs_lst <- tri_cs_fns()
+  tri_tbl <- tibble::tibble(
+    fn = "tri", 
+	k = k_vec, 
+	c_vec = tri_cs_lst$ c_fn (k), 
+	s_vec = tri_cs_lst$ s_fn (k)
+  )
+  
+  xmpl_tbl <- dplyr::bind_rows(
+    saw_tbl, 
+	sqr_tbl, 
+	tri_tbl
+  )
+  return(xmpl_tbl)
+}
+
+### 
+#   saw_dirichlet()
+#     
+#     Sawtooth function: Dirichlet approximation
+#     
+#     Return: long tibble of 1+ approximations
+#     
+#     Note: t in (-pi, pi] extended to (-2 pi, 2 pi]
+#     
+### 
+saw_dirichlet <- function(
+  n_grid  = 49L, # <int> num interior grid points in unit interval
+  n_terms =  2L, # <int> num non-zero terms in sine series
+  include_upper = TRUE # <lgl> include pi, not -pi, in base interval
+) {
+  assertthat::assert_that( min(n_terms) > 0 )
+  
+  # u in (-1, 1)
+  u_pos <- ugrid::u_grid(n_grid, wrap = FALSE)
+  u_neg <- - u_pos [n_grid:1]
+  u     <- c(u_neg, 0, u_pos)
+  
+  # scale to (- 2 pi, 2 pi]
+  theta <- (2 * pi) * u
+  
+  # map theta to t in (- pi, pi]
+  t <- mod_0(theta, pi, include_upper)
+  
+  # calculate f(theta) = f(t)
+  f <- t
+  
+  # initialize return Fourier approximation tibble
+  # denote f(t) as "0"-term approximation
+  fa_tbl <- tibble::tibble(
+    n_terms = 0L, 
+	theta   = theta, 
+	t       = t, 
+	fa      = f
+  )
+  
+  # Fourier series approximation(s) to f(t)
+  k_min  <- 1L
+  k_max  <- n_terms |> unique() |> sort()
+  fa_sum <- rep_len(0, length(t))
+  for (nt in k_max) {
+    
+	# update Fourier approximation
+	for (k in k_min:nt) {
+	  fa_sum <- fa_sum + 
+	    ((sin(k * t)) * 2 * (-1L)^(k - 1) / k)
+	}
+	k_min <- nt + 1L
+	
+	# append updated fa_sum to return tibble
+	fa_tbl <- fa_tbl |> 
+	  dplyr::bind_rows(tibble::tibble(
+	    n_terms = nt, 
+		theta   = theta, 
+		t       = t, 
+		fa      = fa_sum
+	  ))
+  }
+  return(fa_tbl)
+}
+
+### 
+#   saw_fejer()
+#     
+#     Sawtooth function: Fejer approximation
+#     
+#     Return: long tibble of 1+ approximations
+#     
+#     Note: t in (-pi, pi] extended to (-2 pi, 2 pi]
+#     
+### 
+saw_fejer <- function(
+  n_grid  = 49L, # <int> num interior grid points in unit interval
+  n_terms =  2L, # <int> num non-zero terms in sine series
+  include_upper = TRUE # <lgl> include pi, not -pi, in base interval
+) {
+  assertthat::assert_that( min(n_terms) > 0 )
+  
+  # u in (-1, 1)
+  u_pos <- ugrid::u_grid(n_grid, wrap = FALSE)
+  u_neg <- - u_pos [n_grid:1]
+  u     <- c(u_neg, 0, u_pos)
+  
+  # scale to (- 2 pi, 2 pi]
+  theta <- (2 * pi) * u
+  
+  # map theta to t in (- pi, pi]
+  t <- mod_0(theta, pi, include_upper)
+  
+  # calculate f(theta) = f(t)
+  f <- t
+  
+  # initialize return Fourier approximation tibble
+  # denote f(t) as "0"-term approximation
+  fa_tbl <- tibble::tibble(
+    n_terms = 0L, 
+	theta   = theta, 
+	t       = t, 
+	fa      = f
+  )
+  
+  # Fourier series approximation(s) to f(t)
+  k_max  <- n_terms |> unique() |> sort()
+  for (nt in k_max) {
+    
+	# Fourier approximation
+	fa_sum <- rep_len(0, length(t))
+    for (k in 1:nt) {
+	  fa_term <- 
+	    ((sin(k * t)) * 2 * (-1L)^(k - 1) / k)
+	  fa_sum  <- fa_sum + 
+	    (((nt - k + 1) / nt) * fa_term)
+	}
+	
+	# append updated fa_sum to return tibble
+	fa_tbl <- fa_tbl |> 
+	  dplyr::bind_rows(tibble::tibble(
+	    n_terms = nt, 
+		theta   = theta, 
+		t       = t, 
+		fa      = fa_sum
+	  ))
+  }
+  return(fa_tbl)
+}
+
+### 
+#   sqr_dirichlet()
+#     
+#     Square wave function: Dirichlet approximation
+#     
+#     Return: long tibble of 1+ approximations
+#     
+#     Note: t in (-pi, pi] extended to (-2 pi, 2 pi]
+#     
+### 
+sqr_dirichlet <- function(
+  n_grid  = 49L, # <int> num interior grid points in unit interval
+  n_terms =  2L, # <int> num non-zero terms in sine series
+  include_upper = TRUE # <lgl> include pi, not -pi, in base interval
+) {
+  assertthat::assert_that( min(n_terms) > 0 )
+  
+  # u in (-1, 1)
+  u_pos <- ugrid::u_grid(n_grid, wrap = FALSE)
+  u_neg <- - u_pos [n_grid:1]
+  u     <- c(u_neg, 0, u_pos)
+  
+  # scale to (- 2 pi, 2 pi]
+  theta <- (2 * pi) * u
+  
+  # map theta to t in (- pi, pi]
+  t <- mod_0(theta, pi, include_upper)
+  
+  # calculate f(theta) = f(t)
+  f <- sign(t)
+  
+  # initialize return Fourier approximation tibble
+  # denote f(t) as "0"-term approximation
+  fa_tbl <- tibble::tibble(
+    n_terms = 0L, 
+	theta   = theta, 
+	t       = t, 
+	fa      = f
+  )
+  
+  # Fourier series approximation(s) to f(t)
+  k_min  <- 1L
+  k_max  <- n_terms |> unique() |> sort()
+  fa_sum <- rep_len(0, length(t))
+  for (nt in k_max) {
+    
+	# update Fourier approximation
+	for (k in k_min:nt) {
+	  fa_sum <- fa_sum + 
+	    ((sin((2*k-1) * t)) * 4 / ((2*k-1) * pi))
+	}
+	k_min <- nt + 1L
+	
+	# append updated fa_sum to return tibble
+	fa_tbl <- fa_tbl |> 
+	  dplyr::bind_rows(tibble::tibble(
+	    n_terms = nt, 
+		theta   = theta, 
+		t       = t, 
+		fa      = fa_sum
+	  ))
+  }
+  return(fa_tbl)
+}
+
+### 
+#   sqr_fejer()
+#     
+#     Square wave function: Fejer approximation
+#     
+#     Return: long tibble of 1+ approximations
+#     
+#     Note: t in (-pi, pi] extended to (-2 pi, 2 pi]
+#     
+### 
+sqr_fejer <- function(
+  n_grid  = 49L, # <int> num interior grid points in unit interval
+  n_terms =  2L, # <int> num non-zero terms in sine series
+  include_upper = TRUE # <lgl> include pi, not -pi, in base interval
+) {
+  assertthat::assert_that( min(n_terms) > 0 )
+  
+  # u in (-1, 1)
+  u_pos <- ugrid::u_grid(n_grid, wrap = FALSE)
+  u_neg <- - u_pos [n_grid:1]
+  u     <- c(u_neg, 0, u_pos)
+  
+  # scale to (- 2 pi, 2 pi]
+  theta <- (2 * pi) * u
+  
+  # map theta to t in (- pi, pi]
+  t <- mod_0(theta, pi, include_upper)
+  
+  # calculate f(theta) = f(t)
+  f <- sign(t)
+  
+  # initialize return Fourier approximation tibble
+  # denote f(t) as "0"-term approximation
+  fa_tbl <- tibble::tibble(
+    n_terms = 0L, 
+	theta   = theta, 
+	t       = t, 
+	fa      = f
+  )
+  
+  # Fourier series approximation(s) to f(t)
+  k_max  <- n_terms |> unique() |> sort()
+  for (nt in k_max) {
+    
+	# Fourier approximation
+	fa_sum <- rep_len(0, length(t))
+	for (k in 1:nt) {
+	  fa_term <- 
+	    ((sin((2*k-1) * t)) * 4 / ((2*k-1) * pi))
+	  fa_sum <- fa_sum + 
+	    ( ((nt - k + 1)/nt) * fa_term )
+	}
+	
+	# append updated fa_sum to return tibble
+	fa_tbl <- fa_tbl |> 
+	  dplyr::bind_rows(tibble::tibble(
+	    n_terms = nt, 
+		theta   = theta, 
+		t       = t, 
+		fa      = fa_sum
+	  ))
+  }
+  return(fa_tbl)
+}
+
+### 
+#   tri_dirichlet()
+#     
+#     Triangular wave function: Dirichlet approximation
+#     
+#     Return: long tibble of 1+ approximations
+#     
+#     Note: t in (-pi, pi] extended to (-2 pi, 2 pi]
+#     
+### 
+tri_dirichlet <- function(
+  n_grid  = 49L, # <int> num interior grid points in unit interval
+  n_terms =  2L, # <int> num non-zero terms in sine series
+  include_upper = TRUE # <lgl> include pi, not -pi, in base interval
+) {
+  assertthat::assert_that( min(n_terms) > 0 )
+  
+  # u in (-1, 1)
+  u_pos <- ugrid::u_grid(n_grid, wrap = FALSE)
+  u_neg <- - u_pos [n_grid:1]
+  u     <- c(u_neg, 0, u_pos)
+  
+  # scale to (- 2 pi, 2 pi]
+  theta <- (2 * pi) * u
+  
+  # map theta to t in (- pi, pi]
+  t <- mod_0(theta, pi, include_upper)
+  
+  # calculate f(theta) = f(t)
+  f <- (pi/2) - abs(t)
+  
+  # initialize return Fourier approximation tibble
+  # denote f(t) as "0"-term approximation
+  fa_tbl <- tibble::tibble(
+    n_terms = 0L, 
+	theta   = theta, 
+	t       = t, 
+	fa      = f
+  )
+  
+  # Fourier series approximation(s) to f(t)
+  k_min  <- 1L
+  k_max  <- n_terms |> unique() |> sort()
+  fa_sum <- rep_len(0, length(t))
+  for (nt in k_max) {
+    
+	# update Fourier approximation
+	for (k in k_min:nt) {
+	  fa_sum <- fa_sum + 
+	    ((cos((2*k-1) * t)) * 4 / ((2*k-1)^2 * pi))
+	}
+	k_min <- nt + 1L
+	
+	# append updated fa_sum to return tibble
+	fa_tbl <- fa_tbl |> 
+	  dplyr::bind_rows(tibble::tibble(
+	    n_terms = nt, 
+		theta   = theta, 
+		t       = t, 
+		fa      = fa_sum
+	  ))
+  }
+  return(fa_tbl)
+}
+
+### 
+#   tri_fejer()
+#     
+#     Triangular wave function: Fejer approximation
+#     
+#     Return: long tibble of 1+ approximations
+#     
+#     Note: t in (-pi, pi] extended to (-2 pi, 2 pi]
+#     
+### 
+tri_fejer <- function(
+  n_grid  = 49L, # <int> num interior grid points in unit interval
+  n_terms =  2L, # <int> num non-zero terms in sine series
+  include_upper = TRUE # <lgl> include pi, not -pi, in base interval
+) {
+  assertthat::assert_that( min(n_terms) > 0 )
+  
+  # u in (-1, 1)
+  u_pos <- ugrid::u_grid(n_grid, wrap = FALSE)
+  u_neg <- - u_pos [n_grid:1]
+  u     <- c(u_neg, 0, u_pos)
+  
+  # scale to (- 2 pi, 2 pi]
+  theta <- (2 * pi) * u
+  
+  # map theta to t in (- pi, pi]
+  t <- mod_0(theta, pi, include_upper)
+  
+  # calculate f(theta) = f(t)
+  f <- (pi/2) - abs(t)
+  
+  # initialize return Fourier approximation tibble
+  # denote f(t) as "0"-term approximation
+  fa_tbl <- tibble::tibble(
+    n_terms = 0L, 
+	theta   = theta, 
+	t       = t, 
+	fa      = f
+  )
+  
+  # Fourier series approximation(s) to f(t)
+  k_max  <- n_terms |> unique() |> sort()
+  for (nt in k_max) {
+    
+	# Fourier approximation
+	fa_sum <- rep_len(0, length(t))
+	for (k in 1:nt) {
+	  fa_sum <- fa_sum + 
+	    ((cos((2*k-1) * t)) * 4 / ((2*k-1)^2 * pi))
+	}
+	
+	# append updated fa_sum to return tibble
+	fa_tbl <- fa_tbl |> 
+	  dplyr::bind_rows(tibble::tibble(
+	    n_terms = nt, 
+		theta   = theta, 
+		t       = t, 
+		fa      = fa_sum
+	  ))
+  }
+  return(fa_tbl)
+}
+
+### 
+# EOF 
+### 

@@ -1,0 +1,235 @@
+##### 
+### 
+#     pf_factory.R
+#     
+#       create and display periodic functions
+### 
+##### 
+
+### 
+#   mod_0()
+#     
+#     t <- x mod (-p, p]
+#     
+#     Note: x %% (2p) in [0, 2p)
+### 
+mod_0 <- function(
+  x,                   # <dbl> input vector
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  assertthat::assert_that(p > 0)
+  
+  if ( max( abs(x) ) < p ) {
+    # avoid unnecessary computation
+	t <- x
+  } else {
+    if (include_upper) {
+	  # t in (-p, p]
+	  t <- p - ((-x - p) %% (2 * p))
+	} else {
+	  # t in [-p, p)
+	  t <- ((x + p) %% (2 * p)) - p
+	}
+  }
+  return(t)
+}
+
+### 
+#   f_to_pf()
+#     Return a periodic version pf() of given function f()
+#     
+#     t <- x mod (-p, p]
+#     
+#     pf( x ) = f( t )
+### 
+f_to_pf <- function(
+  f,                   # input function
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  assertthat::assert_that(p > 0)
+  
+  pf <- function(
+    x,  # <dbl> input vector
+    ... # additional arguments to f()
+  ) {
+    t <- mod_0(x, p, include_upper)
+	return( f(t, ...) )
+  }
+  return(pf)
+}
+
+### 
+#   pf_tbl()
+#     
+#     given vector x and periodic function pf(), 
+#     return tibble (x, t, pf(t))
+#     
+#     where:
+#     
+#     t <- x mod (-p, p]
+#     
+### 
+pf_tbl <- function(
+  x,                   # <dbl> input vector
+  pf,                  # periodic function
+  p = pi,              # <dbl> half-period
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  # t <- x mod (-p, p]
+  t <- mod_0 (x, p, include_upper)
+  
+  # evaluate function
+  f <- pf(t, p, include_upper)
+  
+  return(tibble::tibble(
+    x = x, t = t, f = f
+  ))
+}
+
+### 
+#   pf_cs_vecs()
+#     
+#     Generate (cos, sin) coefficients from given functions
+#     
+#     Return: tibble( k, c_vec, s_vec ) of (cos, sin) coefficients
+#     
+#     Note: k in 0:k_max, typically
+#     
+### 
+pf_cs_vecs <- function(
+  k_vec = 0:2, # <int> freq indices of returned coefficients
+  c_fn,        # function that generates pf() cosine coefficients
+  s_fn         # function that generates pf() sine coefficients
+) {
+  coeff_tbl <- tibble::tibble(
+    k     = k_vec, 
+	c_vec = c_fn(k_vec), 
+	s_vec = s_fn(k_vec)
+  )
+  return(coeff_tbl)
+}
+
+### 
+#   dirichlet_approx()
+#     
+#     Dirichlet approximation to periodic function pf(t) 
+#     for t in (-pi, pi], extended to (-2pi, 2pi].
+#     
+#     Return tibble (fn, k_max, theta, t, fa)
+### 
+dirichlet_approx <- function(
+  fn = "fn",    # <chr> ID of periodic function pf()
+  cs_fn_lst,    # functions returning pf() (cos, sin) coefficients
+  n_grid = 49L, # <int> number of grid-points within unit interval 
+  k_vec = 0:2,  # <int> freq indices of (cos, sin) coefficients
+  include_upper = TRUE # <lgl> mod (-p, p] rather than [-p, p)
+) {
+  c_fn <- cs_fn_lst$ c_fn
+  s_fn <- cs_fn_lst$ s_fn
+  
+  k_max <- max(k_vec)
+  
+  # u in (-1, 1)
+  u_pos <- ugrid::u_grid(n_grid, wrap = FALSE)
+  u_neg <- - u_pos[n_grid:1]
+  u     <- c( u_neg, 0, u_pos )
+  
+  # map u to theta in (-2pi, 2pi] to show periodicity
+  theta <- (2 * pi) * ugrid
+  
+  # map theta to t in (-pi, pi] for function evaluation
+  t <- mod_0(theta, pi, include_upper)
+  
+  # t_k_mat [t, k] = t * k_max
+  t_k_mat <- t %o% k_vec
+  
+  # t_k_cos [t, k] = cos(t * k)
+  t_k_cos <- t_k_mat |> cos()
+  c_sum   <- (t_k_cos %*% c_fn(k_vec)) |> as.vector()
+  
+  # t_k_sin [t, k] = sin(t * k)
+  t_k_sin <- t_k_mat |> sin()
+  s_sum   <- (t_k_sin %*% s_fn(k_vec)) |> as.vector()
+  
+  # return tibble
+  fa_tbl <- tibble::tibble(
+    fn = fn, 
+	k_max = k_max, 
+	theta = theta, 
+	t = t, 
+	fa = c_sum + s_sum
+  )
+  return(fa_tbl)
+}
+
+### 
+#   window_approx()
+#     
+#     Weighted approximation to periodic function pf(t) 
+#     for t in (-pi, pi], extended to (-2pi, 2pi].
+#     
+#     Return tibble (fn, k_max, theta, t, fa)
+#     
+#     Note: Fejer weights used by default.
+### 
+window_approx <- function(
+  fn = "fn",    # <chr> ID of periodic function pf()
+  cs_fn_lst,    # functions returning pf() (cos, sin) coefficients
+  n_grid = 49L, # <int> number of grid-points within unit interval 
+  k_vec = 0:2,  # <int> freq indices of (cos, sin) coefficients
+  include_upper = TRUE, # <lgl> mod (-p, p] rather than [-p, p)
+  wf = NULL     # weight-generating function of u in [0, 1]
+) {
+  c_fn <- cs_fn_lst$ c_fn
+  s_fn <- cs_fn_lst$ s_fn
+  
+  k_max <- max(k_vec)
+  
+  if (is.null(wf)) {
+    # Fejer window
+	wf <- function(u) pmax(0, 1 - abs(u))
+  }
+  
+  # u in (-1, 1)
+  u_pos <- ugrid::u_grid(n_grid, wrap = FALSE)
+  u_neg <- - u_pos[n_grid:1]
+  u     <- c( u_neg, 0, u_pos )
+  
+  # map u to theta in (-2pi, 2pi] to show periodicity
+  theta <- (2 * pi) * ugrid
+  
+  # map theta to t in (-pi, pi] for function evaluation
+  t <- mod_0(theta, pi, include_upper)
+  
+  # t_k_mat [t, k] = t * k_max
+  t_k_mat <- t %o% k_vec
+  
+  # weights
+  w_vec <- wf( k_vec / (k_max + 1) )
+  
+  # cosine matrix, weighted sum
+  t_k_cos <- t_k_mat |> cos()
+  cw_vec  <- c_fn(k_vec) * w_vec
+  cw_sum  <- (t_k_cos %*% cw_vec) |> as.vector()
+  
+  # sine matrix, weighted sum
+  t_k_sin <- t_k_mat |> sin()
+  sw_vec  <- s_fn(k_vec) * w_vec
+  sw_sum  <- (t_k_sin %*% sw_vec) |> as.vector()
+  
+  # return tibble
+  fa_tbl <- tibble::tibble(
+    fn = fn, 
+	k_max = k_max, 
+	theta = theta, 
+	t = t, 
+	fa = cw_sum + sw_sum
+  )
+  return(fa_tbl)
+}
+
+### 
+# EOF 
+### 

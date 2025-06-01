@@ -1,0 +1,87 @@
+##### 
+### 
+#     unit_testing.R
+#       test source code in this directory
+### 
+##### 
+
+
+### 
+#   piecewise_fns
+### 
+
+### 
+#   mod_0_tst()
+### 
+mod_0_tst <- function(
+  x = (- 3L):3L, # <dbl> input vector
+  p = 1L # <dbl> half-period
+) {
+  tst_tbl <- tibble::tibble(
+    x   = x, 
+	upr = x |> mod_0(p = p, include_upper = TRUE), 
+	lwr = x |> mod_0(p = p, include_upper = FALSE)
+  )
+  return(tst_tbl)
+}
+
+### 
+#   gen_tbl_tst()
+### 
+gen_tbl_tst <- function(
+  .f = gen_sawtooth_tbl, # tibble-generating function
+  x  = (- 3L):3L, # <dbl> input vector
+  p  = 1L # <dbl> half-period
+) {
+  upr_tbl <- x |> .f(
+    p = p, include_upper = TRUE) |> 
+	dplyr::mutate(upr = TRUE) |> 
+	dplyr::select(upr, everything())
+  lwr_tbl <- x |> .f(
+    p = p, include_upper = FALSE) |> 
+	dplyr::mutate(upr = FALSE) |> 
+	dplyr::select(upr, everything())
+  tst_tbl <- dplyr::bind_rows(
+    upr_tbl, 
+	lwr_tbl)
+  return(tst_tbl)
+}
+
+### 
+#   list_pwise_tst()
+### 
+list_pwise_tst <- function(
+  x  = (- 3L):3L, # <dbl> input vector
+  p  = 1L         # <dbl> half-period
+) {
+  tst_lst <- x |> lisst_pwise_tbls(p = p)
+  return(tst_lst)
+}
+
+### 
+#   coeff_tst()
+### 
+coeff_tst <- function(
+  .f    = saw_coeff, # coefficient-generating function
+  k_max = 2L         # <dbl> input vector
+) {
+  coeff_tbl <- .f(k_max = k_max)
+  return(coeff_tbl)
+}
+
+### 
+#   fa_tst()
+### 
+fa_tst <- function(
+  .f = saw_dirichlet,  # approximation-generating function
+  n_grid = 49L,        # <int> num interior grid points
+  n_terms = 2L,        # <int> num non-zero terms in real-valued series
+  inlcude_upper = TRUE # <lgl> use (-p, p] rather than [-p, p)
+) {
+  fa_tbl <- .f(n_grid, n_terms, include_upper)
+  return(fa_tbl)
+}
+
+### 
+# EOF 
+### 

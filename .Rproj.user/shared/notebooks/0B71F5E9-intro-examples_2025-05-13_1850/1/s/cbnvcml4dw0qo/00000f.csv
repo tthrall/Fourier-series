@@ -1,0 +1,18 @@
+"0","symbol_tbl |> "
+"0","  dplyr::select(symbol, dscr) |> "
+"0","  knitr::kable("
+"0","    format = ""html"", "
+"0","	escape = FALSE, "
+"0","	caption = ""Glossary of Mathematical Symbols (s)"", "
+"0","	col.names = c(""s"", ""description"")"
+"0","  ) "
+"1","[WARNING] Could not convert TeX math L_p (\matbb{T}), rendering as TeX:
+"
+"1","  L_p (\matbb{T})
+"
+"1","             ^
+"
+"1","  unexpected control sequence \matbb
+"
+"1","  expecting ""%"", ""\\label"", ""\\tag"", ""\\nonumber"", whitespace or ""\\allowbreak""
+"

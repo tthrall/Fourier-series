@@ -1,0 +1,343 @@
+---
+title: "Fourier Series"
+subtitle: "Introductory Examples"
+author: 
+  - name: "Send comments to: Tony T (tthrall)"
+date: "`r format(Sys.time(), '%Y-%m-%d %H:%M', usetz = TRUE)`"
+output: 
+  html_document:
+    toc: true
+    df_print: paged
+    mathjax: default
+  word_document:
+    toc: true
+    df_print: tibble
+  pdf_document:
+    toc: true
+    df_print: tibble
+abstract: 
+  "Introduce Fourier series approximation with a few periodic, piecewise linear functions."
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = FALSE, 
+  error   = FALSE, 
+  message = FALSE, 
+  warning = FALSE
+)
+```
+
+```{r cran_libraries}
+# library(akima)
+library(assertthat)
+# library(broom)
+# library(entropy)
+library(here)
+# library(interp)
+library(knitr)
+library(LaplacesDemon)
+library(latex2exp)
+library(lubridate)
+# library(matrixcalc)
+library(png)
+library(qdapRegex)
+library(readxl)
+# library(sirt)
+# library(sjstats)
+library(tidyverse)
+library(tinytex)
+# library(VGAM)
+
+```
+
+```{r local_source}
+# fft_approx
+# low-frequency approximation via FFT
+source(here("code", "fft_approx.R"))
+
+# u_grid
+# generate equispaced points within unit interval
+source(here("code", "u_grid.R"))
+
+# unif_convolution
+# uniform mixture; calculate density and cum probability
+source(here("code", "unif_convolution.R"))
+
+# x_rotate
+# circular rotation of vector x[1:n]
+source(here("code", "x_rotate.R"))
+
+# xl_data_hdr
+# read Excel tab when data are separated from col names
+source(here("code", "xl_data_hdr.R"))
+
+```
+
+## Approximation Framework
+
+### $L_p(\mathbb{T})$
+
+Let $\mathbb{T} = \{ \omega \in \mathbb{C}: | \omega | = 1 \}$ denote the multiplicative group of complex numbers of modulus 1, with a topology whose basic open sets are the open arcs of the unit circle.  Let $\mu$ denote Lebesgue measure on $\mathbb{T}$ divided by $2 \pi$ so that $\mu (\mathbb{T}) = 1$.  For any $p > 0$ define $L_p(\mathbb{T})$ as the following linear space of complex-valued functions $\phi: \mathbb{T} \rightarrow \mathbb{C}$ 
+
+$$
+\begin{align}
+  \phi \in L_p(\mathbb{T}) &\Leftrightarrow \int_\mathbb{T} | \phi |^p d\mu < \infty
+\end{align}
+$$
+
+We then define the following norm on $L_p(\mathbb{T})$.
+
+$$
+\begin{align}
+  {\lVert \phi \rVert}_p &= \left ( \int_\mathbb{T} | \phi |^p d\mu \right )^{ \frac {1}{p}}
+\end{align}
+$$
+
+The definition of ${\lVert \phi \rVert}_p$ for $p>0$ can be extended to ${\lVert \phi \rVert}_\infty$ as follows.  Given $\phi: \mathbb{T} \rightarrow \mathbb{C}$ define $U_\phi$ as the following subset of non-negative real numbers $b$.
+
+$$
+\begin{align}
+  b \in U_\phi &\Leftrightarrow \mu \left ( \{ \omega: | \phi (\omega) | > b \} \right ) = 0 
+\end{align}
+$$
+
+Then we define 
+
+$$
+\begin{align}
+  {\lVert \phi \rVert}_\infty &= 
+    \begin{cases}
+      \infty & \text{if } U_\phi = \emptyset \\
+      \inf \; {U_\phi} & \text{otherwise}
+    \end{cases}
+\end{align}
+$$
+
+This norm is also called the _essential upper bound_ of $| \phi(\cdot) |$.  If ${\lVert \phi \rVert}_\infty < \infty$, $\phi(\cdot)$ is said to be _essentially bounded_.  The normed linear space of essentially bounded functions is denoted $L_\infty(\mathbb{T})$.
+
+Since $\mu(\mathbb{T}) = 1$ we have ${\lVert \phi \rVert}_p \le {\lVert \phi \rVert}_\infty$ for all $p>0$ 
+
+$$
+\begin{align}
+  {\lVert \phi \rVert}_p &= \left ( \int_\mathbb{T} | \phi (\omega) |^p d\mu (\omega) \right )^{ \frac {1}{p}} \\ 
+  &\le \left ( \int_\mathbb{T} {\lVert \phi \rVert}_\infty^p d\mu (\omega) \right )^{ \frac {1}{p}} \\ 
+  &= {\lVert \phi \rVert}_\infty \left ( \int_\mathbb{T} 1 \; d\mu (\omega) \right )^{ \frac {1}{p}} \\ 
+  &= {\lVert \phi \rVert}_\infty \left ( \mu(\mathbb{T}) \right )^{ \frac {1}{p}} \\ 
+  &= {\lVert \phi \rVert}_\infty
+\end{align}
+$$
+
+with equality only when $| \phi(\omega) |$ is equal to some constant for almost all $\omega$.  Consequently 
+
+$$
+\begin{align}
+  L_\infty(\mathbb{T}) &\subset L_p(\mathbb{T})
+\end{align}
+$$
+
+Moreover, if $0 < p < q < \infty$ then 
+
+$$
+\begin{align}
+{\lVert \phi \rVert}_p^p &= \int_\mathbb{T} | \phi(\omega) |^p d\mu (\omega) \\ 
+  &= \int_{| \phi | \le 1} | \phi(\omega) |^p d\mu (\omega) + \int_{| \phi | > 1} | \phi(\omega) |^p d\mu (\omega) \\ 
+  &\le \int_{| \phi | \le 1} 1 \; d\mu (\omega) + \int_{| \phi | > 1} | \phi(\omega) |^p d\mu (\omega) \\ 
+  &\le \int_{| \phi | \le 1} 1 \; d\mu (\omega) + \int_{| \phi | > 1} | \phi(\omega) |^q d\mu (\omega) \\ 
+  &\le \int_\mathbb{T} 1 \; d\mu (\omega) + \int_\mathbb{T} | \phi(\omega) |^q d\mu (\omega) \\ 
+  &= 1+  {\lVert \phi \rVert}_q^q
+\end{align}
+$$
+
+
+Therefore 
+
+$$
+\begin{align}
+  L_q(\mathbb{T}) &\subset L_p(\mathbb{T}) & \text{for } p < q
+\end{align}
+$$
+
+Combining these subset relations we have 
+
+$$
+\begin{align}
+  L_\infty(\mathbb{T}) \subset L_q(\mathbb{T}) \subset L_p(\mathbb{T}) \subset L_1(\mathbb{T}) \\ 
+  \\ 
+  & \text{for } 1 < p < q < \infty
+\end{align}
+$$
+
+It turns out that for each $p \in (0, \infty]$, $L_p(\mathbb{T})$ is a _complete_ normed linear space i.e., a Banach space. That is, each Cauchy sequence in $L_p(\mathbb{T})$ converges to a member of $L_p(\mathbb{T})$.
+
+### $2 \pi$-periodic functions
+
+We will identify a $2 \pi$-periodic function $f: \mathbb{R} \rightarrow \mathbb{C}$ with a corresponding function $\phi: \mathbb{T} \rightarrow \mathbb{C}$ if the following relation holds.
+
+$$
+\begin{align}
+  f(\theta) &= \phi(e^{i \theta})
+\end{align}
+$$
+
+That is, we can define $f(\cdot)$ based on $\phi(\cdot)$ or, alternatively, we can define $\phi(\cdot)$ based on $f(\cdot)$.
+
+To facilitate construction of example functions we also define the following mapping $\theta \mapsto \tilde{\theta}$ from $\mathbb{R}$ to $(- \pi, \pi]$.
+
+$$
+\begin{align}
+  \tilde{\theta} &= \text{Arg}(e^{i \theta}) \in (- \pi, \pi]
+\end{align}
+$$
+
+### $L_2(\mathbb{T})$
+
+For any $\phi, \eta \in L_2(\mathbb{T})$ we define the following inner product.
+
+$$
+\begin{align}
+  \left < \phi, \eta \right > &= \int_\mathbb{T} \phi \times \bar{\eta} \; d\mu \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} \phi(e^{i \theta}) \times \bar{\eta}(e^{i \theta}) \; d\theta
+\end{align}
+$$
+
+Then $L_2(\mathbb{T})$ is a complete inner-product space, i.e., a Hilbert space.
+
+### An orthonormal basis
+
+For each integer $\nu \in \mathbb{Z}$ define function $u_\nu \in L_2(\mathbb{T})$ as the following unit exponential function.
+
+$$
+\begin{align}
+  u_\nu(\omega) &= {\omega}^\nu
+\end{align}
+$$
+
+or equivalently 
+
+$$
+\begin{align}
+  u_\nu(e^{i \theta}) &= e^{i \nu \theta}
+\end{align}
+$$
+
+Then for any integers $\mu, \nu \in \mathbb{Z}$ we have 
+
+$$
+\begin{align}
+  \left < u_\mu, u_\nu \right > &= \int_\mathbb{T} u_\mu \times \bar{u}_\nu \; d\mu \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} e^{i \mu \theta} \times e^{-i \nu \theta} \; d\theta \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} e^{i \theta (\mu - \nu) } \; d\theta \\ 
+  &= \delta_{\mu - \nu}
+\end{align}
+$$
+
+where $\delta_n$ is the Kronecker delta, equal to 1 at $n=0$ and equal to zero for non-zero integers $n$.
+
+Therefore $\{ u_\nu \}_{\nu \in \mathbb{Z}}$ is an orthonormal set of functions in $L_2(\mathbb{T})$.  It turns out that this set is moreover an orthonormal _basis_ of $L_2(\mathbb{T})$.
+
+## Fourier Coefficients
+
+### $\hat{f} [\nu]$
+
+If $\phi(\cdot) \in L_1(\mathbb{T})$ and $f(\theta) = \phi(e^{i \theta})$, the following formula defines $\hat{f} [\nu]$ to be the Fourier coefficient of $f(\cdot)$ of index $\nu$.
+
+$$
+\begin{align}
+  \hat{f} [\nu] &= \left < \phi, u_\nu \right > \\ 
+  &= \int_\mathbb{T} \phi \times \bar{u}_\nu \; d\mu \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} \phi(e^{i \theta}) \times \bar{u}_\nu(e^{i \theta}) \; d\theta \\ 
+  &= \frac{1}{2 \pi} \int_{- \pi}^{\pi} f(\theta) \times e^{- i \nu \theta} \; d\theta
+\end{align}
+$$
+
+Note that the magnitude of $\hat{f} [\nu]$ is bounded by ${\lVert f \rVert}_1$ for all $\nu$.
+
+$$
+\begin{align}
+  \left | \hat{f} [\nu] \right | &= \left | \frac{1}{2 \pi} \int_{- \pi}^{\pi} f(\theta) \times e^{- i \nu \theta} \; d\theta \right | \\ 
+  &\le \frac{1}{2 \pi} \int_{- \pi}^{\pi} | f(\theta) | \; d\theta \\ 
+  &= {\lVert f \rVert}_1 
+\end{align}
+$$
+
+We denote by $\mathcal{F} (f)$ the mapping $f(\cdot) \mapsto \{ \hat{f} [\nu] \}_\nu$ 
+
+$$
+\begin{align}
+  \mathcal{F} (f) = \left \{ \hat{f} [\nu] \right \}_{\nu = - \infty}^{\infty}
+\end{align}
+$$
+
+Thus $\mathcal{F}$ maps $L_1(\mathbb{T})$ to the normed linear space of bounded sequences $\mathcal{l}_\infty$.  Moreover, from Mercer's theorem it can be shown that 
+
+$$
+\begin{align}
+  \lim_{|\nu| \rightarrow \infty} \hat{f}[\nu] &= 0
+\end{align}
+$$
+
+That is, $\mathcal{F}$ maps $L_1(\mathbb{T})$ to $\mathcal{c}_0$, the subspace of bounded sequences that converge to zero.
+
+### $S_{n, w}(f)$
+
+We now define $S_n(f) (\cdot)$ as the following finite Fourier series approximation of $f(\cdot)$ of index $n$.
+
+$$
+\begin{align}
+  S_n(f) (\theta) &= \sum_{\nu = -n}^{n} \hat{f} [\nu] e^{i \nu \theta}
+\end{align}
+$$
+
+More generally we'll consider weighted approximations of the following form.
+
+$$
+\begin{align}
+  S_{n, w}(f) (\theta) &= \sum_{\nu = -n}^{n} w(\frac{\nu}{n}) \hat{f} [\nu] e^{i \nu \theta}
+\end{align}
+$$
+
+where $w: \mathbb{R} \rightarrow \mathbb{R}$ is some specified weighting function, also known as a convergence factor.
+
+## Example Functions
+
+## Gibbs Phenomenon
+
+## Kernel Functions
+
+Note that 
+
+$$
+\begin{align}
+  \left |\ D_n(\theta) \right |^2 &= \left | \sum_{\nu = -n}^{n} e^{i \nu \theta} \right |^2 \\ 
+  &= \sum_{\mu = -n}^{n} e^{i \mu \theta} \times \sum_{\nu = -n}^{n} e^{- i \nu \theta} \\ 
+  &= \sum_{\mu, \nu = -n}^{n} e^{i (\mu - \nu) \theta} \\ 
+  &= \sum_{\eta = - 2 n}^{2 n} (2 n + 1 - |\eta|) e^{i \eta \theta} \\ 
+  &= (2 n + 1) \sum_{\eta = - 2 n}^{2 n} (1 - \frac{|\eta|}{2 n + 1}) e^{i \eta \theta} \\ 
+  &= (2 n + 1) F_{2 n + 1} (\theta)
+\end{align}
+$$
+so that 
+
+$$
+\begin{align}
+  F_{2 n + 1} (\theta) &= \frac{1}{2 n + 1} \; \left |\ D_n(\theta) \right |^2 \\ 
+  &= \frac{1}{2 n + 1} \; \left( \frac{\sin((n + \frac{1}{2}) \; \theta)}{\sin( \frac{1}{2} \theta)} \right )^2
+\end{align}
+$$
+
+## DFT: the discrete Fourier transform
+
+## Closing Remarks
+
+## Resources
+
+[Trigonometric moment problem](https://en.wikipedia.org/wiki/Trigonometric_moment_problem)
+
+## Trigonometric Series
+
+### Trigonometric moment problem
+
+Given $\mathcal{F} (f) = \{ \hat{f}[\nu] \}$ with $f \in L_1(\mathbb{T})$ we can reconstruct $f (\cdot)$ as $\mathcal{F}^{-1} (\hat{f}[\cdot])$.  Now we ask, under what conditions can this inverse mapping be applied to a given numeric sequence $c_{\bullet} = \{ c_\nu \}$?  This is known as the trigonometric moment problem.
+

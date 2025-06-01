@@ -1,0 +1,8 @@
+"0","g_hk_low <- hk_long |> "
+"0","  dplyr::filter(k_idx == k_low) |> "
+"0","  ggplot2::ggplot(mapping = aes("
+"0","    x = theta, y = Hn"
+"0","  )) + "
+"0","  ggplot2::geom_line() + "
+"0","  ggplot2::ylab(paste0(""H"", k_low))"
+"0","g_hk_low"

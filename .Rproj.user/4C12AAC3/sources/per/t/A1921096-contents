@@ -1,0 +1,295 @@
+---
+title: "Fourier Series"
+subtitle: "Introductory Examples"
+author: 
+  - name: "Send comments to: Tony T (tthral)"
+date: "`r format(Sys.time(), '%Y-%m-%d %H:%M', usetz = TRUE)`"
+output: 
+  html_document:
+    toc: true
+    df_print: paged
+    mathjax: default
+  word_document:
+    toc: true
+    df_print: tibble
+  pdf_document:
+    toc: true
+    df_print: tibble
+abstract: 
+  "Calculate the Fourier coefficients of a few simple functions defined on the unit circle."
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = FALSE, 
+  error   = FALSE, 
+  message = FALSE, 
+  warning = FALSE
+)
+```
+
+```{r libraries}
+# library(akima)
+library(assertthat)
+# library(broom)
+# library(entropy)
+library(here)
+# library(interp)
+library(knitr)
+library(LaplacesDemon)
+library(latex2exp)
+library(lubridate)
+# library(matrixcalc)
+library(png)
+library(qdapRegex)
+library(readxl)
+# library(sirt)
+# library(sjstats)
+library(tidyverse)
+library(tinytex)
+# library(VGAM)
+
+```
+
+```{r local_source}
+# mix indep Beta variates; calculate density and cum probability
+# source(here("code", "beta_convolution.R"))
+
+# determine (p, q) grids for qbeta(p, r, s) and pbeta(q, r, s)
+# source(here("code", "beta_grid.R"))
+
+# generate several correlated beta mixture variables
+# source(here("code", "gen_bmix_tbl.R"))
+
+# print tables in customized formats
+# source(here("code", "kable_custom.R"))
+
+# optionally write an R object to a file
+# source(here("code", "retain_tbl.R"))
+
+# extend dplyr::slice functions
+# source(here("code", "slice_more.R"))
+
+# plot dbeta(q, r, s) and pbeta(q, r, s)
+# source(here("code", "plot_beta.R"))
+
+# plot output of beta_convolve()
+# source(here("code", "test_beta_convolve.R"))
+
+# plot output of unif_convolve()
+# source(here("code", "test_unif_convolve.R"))
+
+# generate equispaced points within unit interval
+source(here("code", "u_grid.R"))
+
+# uniform mixture; calculate density and cum probability
+source(here("code", "unif_convolution.R"))
+
+# read Excel tab when data are separated from col names
+# source(here("code", "xl_data_hdr.R"))
+
+```
+
+## AAA
+
+XXX.
+
+```{r tst_tbl}
+#| label: tst_tbl
+
+n_tst <- 2L^3L
+tst_tbl <- tibble(
+  idx = (1:n_tst) - 1L, 
+  u   = u_grid(n = n_tst) - 0.5, 
+  f   = sign(u), 
+  dft = stats::fft(f))
+
+```
+
+```{r gen_dft_fn}
+#| label: gen_dft_fn
+
+gen_dft_fn <- function(
+    dft # <cpl> discrete Fourier transform
+) {
+  n_dft <- length(dft)
+  idx   <- (1:n_dft) - 1L
+  coeff <- dft/n_dft
+  
+  dft_fn <- function(x # <dbl> scalar value
+  ) {
+    return(sum(
+      coeff * exp(2 * pi * (0 + 1i) * idx * x / n_dft)
+    ))
+  }
+  return(dft_fn)
+}
+
+```
+
+```{r sign_approx}
+#| label: sign_approx
+
+sign_approx = gen_dft_fn(tst_tbl$dft)
+
+```
+
+```{r sign_approx_tbl}
+#| label: sign_approx_tbl
+
+sign_approx_tbl <- tibble(
+  u    = u_grid() - 0.5, 
+  y    = sign_approx(u), 
+  y_re = y |> Re(), 
+  y_im = y |> Im()
+)
+
+```
+
+```{r g_sign_approx}
+#| label: g_sign_approx
+
+g_sign_approx <- sign_approx_tbl |> 
+  ggplot(mapping = aes(
+    x = u, y = y_re
+  )) + geom_line()
+
+g_sign_approx
+
+g_save <- FALSE
+if (g_save) {
+  ggsave(
+    here("graphics", "g_sign_approx.png")
+  )
+}
+
+```
+
+## BBB
+
+XXX.
+
+## CCC
+
+XXX.
+
+$$
+\begin{align}
+  corr(X, Y) &:= \frac{Cov(X, Y)}{SD(X) \times SD(Y)} \\
+  &= E \left( \frac{X - E(X)}{SD(X)}) \times \frac{Y - E(Y)}{SD(Y)} \right) \\
+\end{align}
+$$
+
+In the current context $X$ denotes a randomly selected individual's level of proficiency in a specified competency according to the first assessment and $Y$ denotes that same individual's level of proficiency in the same competency according to the second assessment.  Thus the correlation in question is the average across individuals of the product of the standardized scores from the two respective assessments.  Here's a conceptual layout of the data tha illustrates this calculation.
+
+```{r std_product_tbl_LATEX}
+std_product_tbl <- tibble(
+  ID    = rep("i", 3), 
+  assmt = c("1", "2", ""), 
+  cmp_1 = c("$x_{i, 1}$", "$y_{i, 1}$", "$r_{i, 1}$"), 
+  cmp_2 = c("$x_{i, 2}$", "$y_{i, 2}$", "$r_{i, 2}$"), 
+  cmp_3 = c("$x_{i, 3}$", "$y_{i, 3}$", "$r_{i, 3}$"), 
+  cmp_4 = c("$x_{i, 4}$", "$y_{i, 4}$", "$r_{i, 4}$"), 
+  cmp_5 = c("$x_{i, 5}$", "$y_{i, 5}$", "$r_{i, 5}$"), 
+  cmp_6 = c("$x_{i, 6}$", "$y_{i, 6}$", "$r_{i, 6}$"), 
+  cmp_7 = c("$x_{i, 7}$", "$y_{i, 7}$", "$r_{i, 7}$")
+)
+
+std_product_tbl %>% knitr::kable(
+  caption = "Standardized products $r_{i, k}$ per individual (i) and competency (k)"
+)
+
+```
+
+The final row of the above table contains the products $r_{i, k}$ of standardized assessment scores.
+
+$$
+\begin{align}
+  r_{i,k} &= \frac{x_{i,k} - \bar{x}_k}{s_{x,k}} \times \frac{y_{i,k} - \bar{y}_k}{s_{y,k}} \\
+\end{align}
+$$
+
+Averaging across individuals $i$ we obtain an estimate $\hat{\rho}_k$ of the population correlation coefficient $\rho_k$.[^n_1]
+
+$$
+\begin{align}
+  \hat{\rho}_k &:= \frac{1}{n-1} \sum_i{r_{i,k}} \\
+\end{align}
+$$
+
+## Hotelling's T-squared Statistic
+
+We now formulate the aforementioned null hypothesis that the two assessments measure unrelated traits.  Let $(X, Y)$ denote a randomly selected individual's pair of assessments of competency $k$, and let $\rho_k$ denote the statistical correlation between the two assessments of competency $k$.  Then the null hypothesis $H_0$ is that the correlation is zero for all seven competencies.
+
+$$
+\begin{align}
+  H_0 &: \rho_{\bullet} = 0 \\
+  \rho_{\bullet} &:= (\rho_1, \ldots, \rho_7) \\
+  \rho_k &:= corr(X, Y)_k \\
+\end{align}
+$$
+
+Now the established estimator of the vector $\rho_{\bullet}$ of population correlation coefficients is the vector $\hat{\rho}_{\bullet}$ of sample correlation coefficients.
+
+$$
+\begin{align}
+  \hat{\rho}_{\bullet} &:= (\hat{\rho}_1, \ldots, \hat{\rho}_7) \\
+\end{align}
+$$
+
+Since scores on distinct competencies may be correlated, we must allow for possible correlation among the components of $\hat{\rho}_{\bullet}$.  This leads us to propose Hotelling's $T^2$ statistic[^htsq] to test the above null hypothesis $H_0$.  
+
+
+$$
+\begin{align}
+  T^2 &= n \times \hat{\rho}_{\bullet}^{\prime} S^{-1} \hat{\rho}_{\bullet} \\
+  S &= \frac{1}{n-1} r_{\bullet,\bullet}^{\prime}} r_{\bullet,\bullet} \\
+\end{align}
+$$
+
+Under the null hypothesis $T^2$ is proportional to a statistic having an approximate $F$ distribution.  That is, 
+
+$$
+\begin{align}
+  T^2 &\sim \frac{d \: (n-1)}{n-d} F_{d, \: n-d} \\
+\end{align}
+$$
+
+Here $n$ denotes the sample size (the number of subjects) and $d$ denotes the number of variables (competencies).  Thus $d = 7$, since we have 7 competencies.
+
+## Hypothetical Example
+
+### Assessed Levels of Proficiency
+
+### Products of the two Standardized Assessments
+
+### Assessment Correlation per Competency
+
+### Second Moments of Standardized Products
+
+### Statistical Test
+
+## Statistical Power
+
+## Closing Remarks
+
+## Appendix 1: A model of correlated levels of proficiency
+
+### Beta distribution: mean and variance
+
+### Expected values (first moments)
+
+### Variances and covariances (second moments)
+
+### Interpreting the model
+
+## Appendix 2: A simplification of the model
+
+
+
+[^SDSA_1]: "Assessing Data Science Proficiency: An Overview", NSA Senior Data Science Authority, 2022-08.
+
+[^htsq]: "Hotelling's T-squared distribution", [Wikipedia](https://en.wikipedia.org/wiki/Hotelling%27s_T-squared_distribution)
+
+[^n_1]: The denominator in this formula, $n-1$, corresponds to the use of the _sample_ standard deviation to scale the assessed levels of proficiency.

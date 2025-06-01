@@ -1,0 +1,2 @@
+"0","articles_tbl <- get_articles_tbl() |> "
+"0","  dplyr::arrange(title)"

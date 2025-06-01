@@ -1,0 +1,91 @@
+---
+title: "Fourier Analysis of Time Series"
+subtitle: "An Introduction"
+author: 
+  - name: "Send comments to: Tony T (tthrall)"
+date: "`r format(Sys.time(), '%Y-%m-%d %H:%M', usetz = TRUE)`"
+output: 
+  html_document:
+    toc: true
+    df_print: paged
+    mathjax: default
+  word_document:
+    toc: true
+    df_print: tibble
+  pdf_document:
+    toc: true
+    df_print: tibble
+abstract: 
+  "Introduce Fourier series approximation with a few periodic, piecewise linear functions."
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = FALSE, 
+  error   = FALSE, 
+  message = FALSE, 
+  warning = FALSE
+)
+```
+
+```{r cran_libraries}
+library(assertthat)
+library(here)
+library(knitr)
+library(latex2exp)
+library(tidyverse)
+library(tinytex)
+
+```
+
+```{r local_libraries}
+library(ugrid)
+
+```
+
+```{r local_source}
+# demo Fourier approx by setting higher harmonics of x to zero
+source(here("code", "fft_approx.R"))
+
+# define Dirichlet, Fejer, etc. kernel functions
+source(here("code", "kernel_fns.R"))
+
+# test the code residing in neighboring source files
+source(here("code", "unit_testing.R"))
+
+# circular rotation of vector x[1:n]
+source(here("code", "x_rotate.R"))
+
+# define a few 2-pi periodic, piece-wise linear functions
+source(here("code", "xmpl_fns.R"))
+
+```
+
+```{r plotting_params}
+n_pos_pts < 121L # yields 2n+1 = 3^k points
+n_kernel_indices <- c(9L, 25L)
+n_copies <- 2L # duplicate periods for illustration
+
+```
+
+## Introduction
+
+This technical note introduces the Fourier analysis of time series data, building on the Fourier analysis of periodic functions presented in an earlier note.
+
+## Time Series Examples
+
+## Mathematical Framework
+
+## Closing Remarks
+
+This technical note introduces the Fourier analysis of time series data, building on the Fourier analysis of periodic functions presented in an earlier note.
+
+## Glossary of Mth Symbols
+
+## Resources
+
+### Books
+
+### Articles
+

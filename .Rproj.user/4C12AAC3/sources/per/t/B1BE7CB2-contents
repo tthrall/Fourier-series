@@ -1,0 +1,30 @@
+#####
+###
+#     u_grid
+#
+#       generate equispaced points within either
+#       the open unit interval (wrap = FALSE) or
+#       the circle of unit circumference (wrap = TRUE)
+###
+#####
+
+##
+#  u_grid()
+##
+u_grid <- function(
+  n    = 1024L, # <int> number of grid-points
+  wrap = TRUE   # <lgl> identify endpoints of unit interval?
+) {
+  if (wrap) {
+    u_vec <- seq.int(1, (2*n)-1, 2)/(2*n)
+  } else {
+    u_vec <- (1:n)/(n+1)
+  }
+
+  return(u_vec)
+}
+
+
+##
+#  EOF
+##
